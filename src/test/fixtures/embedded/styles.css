@@ -1,0 +1,6 @@
+/* Embedded fixture: external sheet mirrors the inactive case so the
+ * external path stays covered next to the embedded style block and the
+ * inline attribute. */
+.non-flex {
+  justify-content: center;
+}

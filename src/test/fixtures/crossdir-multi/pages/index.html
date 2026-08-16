@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>NoEffect Crossdir-Multi Fixture — Pages Page</title>
+  <link rel="stylesheet" href="../styles/x.css">
+</head>
+<body>
+  <!-- This page's .non-flex IS a flex container: nothing may be dimmed. If
+       the resolver picked THIS document (distance 2) over the root page
+       (distance 1), the fixture would report zero issues. -->
+  <div class="non-flex" style="display: flex">
+    <span>Flex container, farther companion document</span>
+  </div>
+</body>
+</html>

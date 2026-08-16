@@ -1,0 +1,44 @@
+/* ==========================================================================
+   1. INACTIVE FLEX PROPERTIES ON BLOCK ELEMENT
+   ========================================================================== */
+.block-layout-container {
+    display: block;
+    padding: 16px;
+    background-color: #f4f4f5;
+
+    /* Inactive: These flexbox properties have no effect on display: block */
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+}
+
+
+/* ==========================================================================
+   2. UNRENDERED PSEUDO-ELEMENT (MISSING 'content' PROPERTY)
+   ========================================================================== */
+.missing-content-badge::before {
+    /* Notice: 'content' property is missing entirely */
+    
+    /* Inactive: Without 'content', the pseudo-element box is not generated */
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+}
+
+
+/* ==========================================================================
+   3. CASCADE OVERRIDE ACROSS MULTIPLE SELECTORS
+   ========================================================================== */
+/* Base Selector */
+.action-button {
+    background-color: #007acc;
+    color: #ffffff; /* Overridden by .action-button.is-danger below */
+    padding: 10px 18px;
+    border: none;
+    border-radius: 4px;
+}
+
+/* Higher Specificity / Compound Selector (Cross-Selector Override) */
+.action-button.is-danger {
+    color: #ff4d4f; /* Wins cascade and overrides 'color' from .action-button */
+}

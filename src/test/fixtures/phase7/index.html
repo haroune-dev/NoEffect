@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NoEffect Phase 7 Fixture</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Case 1: broken vs intact table formatting context -->
+  <table class="broken-table">
+    <tr>
+      <td class="cell-broken">Cell in a broken table context</td>
+    </tr>
+  </table>
+  <table class="intact-table">
+    <tr>
+      <td class="cell-intact">Cell in an intact table context</td>
+    </tr>
+  </table>
+
+  <!-- Case 2: explicit display override removes the placement context -->
+  <div class="flex-container">
+    <div class="place-good">Implicit flex item</div>
+    <div class="place-bad">Explicit display: block override</div>
+  </div>
+
+  <!-- Case 3: flex stays active on a real flex child -->
+  <div class="flex-wrap">
+    <div class="flex-child">flex: 1 stays active</div>
+  </div>
+</body>
+</html>

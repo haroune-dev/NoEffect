@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NoEffect Phase 5 Fixture</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Case 1a: out-of-flow flex items -->
+  <div class="flex-parent">
+    <div class="flex-item-ok">An in-flow flex item</div>
+    <div class="abs-flex">An absolutely positioned flex child</div>
+  </div>
+
+  <!-- Case 1b: out-of-flow grid items -->
+  <div class="grid-parent">
+    <div class="grid-item-ok">An in-flow grid item</div>
+    <div class="abs-grid">An absolutely positioned grid child</div>
+  </div>
+
+  <!-- Case 2: composite text truncation -->
+  <div class="trunc-missing-overflow">Ellipsis missing overflow</div>
+  <div class="trunc-missing-nowrap">Ellipsis missing nowrap</div>
+  <div class="trunc-valid">Ellipsis with both prerequisites</div>
+
+  <!-- Case 3: inline non-replaced suppression -->
+  <span class="inline-geometry">An inline span with vertical/transform geometry</span>
+  <span class="inline-horizontal-padding">An inline span with horizontal padding</span>
+  <img class="inline-img" alt="A replaced inline element">
+  <div class="block-transform">A block box with a transform</div>
+
+  <!-- Case 4: place-self in the place-* family -->
+  <div class="plain-block">A plain block with place-self</div>
+  <div class="flex-place-parent">
+    <div class="flex-item-place">A flex item with place-self</div>
+  </div>
+</body>
+</html>

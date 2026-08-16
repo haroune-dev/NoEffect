@@ -1,0 +1,18 @@
+.flex-container {
+  display: flex;
+}
+
+.all-inactive {
+  display: block;
+  justify-content: center; /*  inactive: ignored on both index.html and about.html */
+  color: #222;
+}
+
+.active-somewhere {
+  align-self: center; /*  active: effective on index.html (flex child), so it must NOT be dimmed */
+}
+
+.secondary-only {
+  display: block;
+  justify-content: space-between; /*  inactive: present only in about.html and ignored in block context */
+}

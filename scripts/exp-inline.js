@@ -1,0 +1,80 @@
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+/* Experiment: inspect how CDP reports <style> blocks and inline style="" attributes. */
+const lifecycleManager_1 = require("../src/browser/lifecycleManager");
+const fs = __importStar(require("fs"));
+const path = __importStar(require("path"));
+const fixture = '/tmp/opencode/embedded-exp';
+const html = [
+    '<!DOCTYPE html>',
+    '<html>',
+    '<head>',
+    '<style>',
+    '  .box {',
+    '    width: 100px;',
+    '    margin-top: 10px;',
+    '  }',
+    '  .box .inner { justify-content: center; }',
+    '</style>',
+    '<link rel="stylesheet" href="ext.css">',
+    '</head>',
+    '<body>',
+    '  <div class="box" style="color: red;  margin-top: 5px;">a</div>',
+    '  <div class="inner" style="justify-content:center">b</div>',
+    '</body>',
+    '</html>',
+].join('\n');
+fs.mkdirSync(fixture, { recursive: true });
+fs.writeFileSync(path.join(fixture, 'index.html'), html);
+fs.writeFileSync(path.join(fixture, 'ext.css'), '.ext { gap: 8px; }');
+async function main() {
+    const prepared = await lifecycleManager_1.defaultLifecycle.prepare(fixture, '/index.html', true);
+    const cdp = prepared.cdp;
+    await cdp.send('DOM.getDocument', { depth: -1 });
+    const evalRes = await cdp.send('Runtime.evaluate', {
+        expression: `document.querySelector('.box')`,
+        returnByValue: false,
+    });
+    const { nodeId } = await cdp.send('DOM.requestNode', { objectId: evalRes.result.objectId });
+    const matched = await cdp.send('CSS.getMatchedStylesForNode', { nodeId });
+    console.log(JSON.stringify(matched, null, 2));
+    await lifecycleManager_1.defaultLifecycle.dispose();
+}
+main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+});
+//# sourceMappingURL=exp-inline.js.map

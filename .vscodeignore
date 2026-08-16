@@ -1,0 +1,51 @@
+# .vscodeignore — governs ONLY the VSIX payload (vsce package).
+# The repository itself is governed by .gitignore (out/, dist/, node_modules/,
+# *.vsix, .vscode-test/, .DS_Store).
+#
+# `scripts/**` and the esbuild config are repo-only assets REQUIRED by
+# `vscode:prepublish` (vsce executes it from the repo root at package time,
+# NOT from an installed VSIX): they stay committed in git and must NOT ship.
+# Do not add scripts/ to .gitignore and do not delete it.
+#
+# Note: excluding the whole `out/**` supersedes `out/test/**` and is correct
+# because `dist/` is the only shipped artifact — dev output never ships.
+
+# Non-shippable paths
+.vscode/**
+.vscode-test/**
+src/**
+out/**
+**/fixtures/**
+node_modules/**
+scripts/**
+
+# Repo-only dev material: vendored Chromium rule-source reference and
+# verification icons (the shipped decoration icons are inlined in the bundle;
+# nothing resolves these paths at runtime).
+reference/**
+assets/**
+
+# Build artifacts that never ship
+**/*.map
+dist/*.meta.json
+**/*.d.ts
+
+# Repo-root strays and hidden dotfiles are never shippable
+.*
+.verify-companion.mjs
+repro-*
+test*
+*.js
+*.mjs
+*.ts
+
+# Project meta / docs that are not part of the runtime payload
+*.md
+!README.md
+!readme.md
+**/*.txt
+tsconfig.json
+eslint.config.*
+.eslintrc*
+.gitignore
+package-lock.json

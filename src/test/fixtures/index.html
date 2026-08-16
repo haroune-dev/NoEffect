@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NoEffect Regression Fixture 2</title>
+  <link rel="stylesheet" href="styles.css" />
+
+   <style>
+    .block-inline {
+      display: block;
+      justify-content: center;
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <h1>NoEffect Regression Fixture 2</h1>
+
+    <!-- Level 1: Basic layout cases -->
+    <section class="group">
+      <h2>Level 1 — Basic cases</h2>
+
+      <div class="static-box">
+        static position
+      </div>
+
+      <div class="flex-container">
+        <div class="flex-item flex-item-active">real flex item</div>
+        <div class="flex-item flex-item-absolute">absolute flex child</div>
+      </div>
+
+      <div class="grid-container">
+        <div class="grid-item grid-item-active">real grid item</div>
+        <div class="grid-item grid-item-absolute">absolute grid child</div>
+      </div>
+
+      <div class="non-flex">
+        <span>not a flex container</span>
+      </div>
+    </section>
+
+    <!-- Level 2: Compound context cases -->
+    <section class="group">
+      <h2>Level 2 — Compound cases</h2>
+
+      <div class="truncate truncate-good">
+        This text should truncate correctly.
+      </div>
+
+      <div class="truncate truncate-bad-overflow">
+        This text misses overflow hidden/scroll so ellipsis should fade.
+      </div>
+
+      <div class="truncate truncate-bad-nowrap">
+        This text misses nowrap so ellipsis should fade.
+      </div>
+
+      <div class="place-grid">
+        <div class="place-self-good">place-self active</div>
+        <div class="place-self-bad">place-self inactive</div>
+      </div>
+
+      <div class="inline-box">
+        <span class="inline-target">inline target</span>
+      </div>
+
+      <div class="table-wrapper">
+        <table class="real-table">
+          <tr>
+            <td class="table-cell-active">table cell active</td>
+            <td class="table-cell-active">table cell active</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="broken-table-context">
+        <div class="table-cell-faded">vertical-align should fade here</div>
+      </div>
+    </section>
+
+    <!-- Level 3: Pseudo / scroll / DOM constraints -->
+    <section class="group">
+      <h2>Level 3 — Pseudo and scroll constraints</h2>
+
+      <p class="pseudo-before-no-content">before without content</p>
+      <p class="pseudo-before-with-content">before with content</p>
+
+      <p class="pseudo-after-no-content">after without content</p>
+      <p class="pseudo-after-with-content">after with content</p>
+
+      <p class="first-letter-case">
+        first letter should reject layout-heavy properties
+      </p>
+
+      <div class="scroll-container">
+        <div class="scroll-inner">
+          <p>scroll item 1</p>
+          <p>scroll item 2</p>
+          <p>scroll item 3</p>
+          <p>scroll item 4</p>
+          <p>scroll item 5</p>
+          <p>scroll item 6</p>
+        </div>
+      </div>
+
+      <div class="non-scroll-container">
+        <div class="scroll-inner">
+          <p>not a scroll container</p>
+          <p>scrollbar-gutter and overscroll-behavior should fade here</p>
+        </div>
+      </div>
+
+      <img
+        class="replaced-image"
+        alt="replaced element"
+        src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='80'><rect width='120' height='80' fill='orange'/><text x='12' y='45' font-size='18' fill='black'>IMG</text></svg>"
+      />
+
+      <div class="non-replaced-object-fit">
+        object-fit on div
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NoEffect Extension Demo</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Test 1: Flex properties applied to a Block container -->
+    <section class="demo-card">
+        <h2>1. Inactive Flex Properties on Block Container</h2>
+        <div class="block-layout-container">
+            <p>Block Element Content</p>
+        </div>
+    </section>
+
+    <!-- Test 2: Pseudo-element missing 'content' property -->
+    <section class="demo-card">
+        <h2>2. Inactive Properties on Unrendered Pseudo-Element</h2>
+        <button class="missing-content-badge">Notifications</button>
+    </section>
+
+    <!-- Test 3: Cascade Override across two distinct selectors -->
+    <section class="demo-card">
+        <h2>3. Cross-Selector Cascade Override</h2>
+        <button class="action-button is-danger">Delete Item</button>
+    </section>
+
+</body>
+</html>

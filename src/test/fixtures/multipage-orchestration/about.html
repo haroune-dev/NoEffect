@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Multipage Orchestration - About</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- ❌ .all-inactive: plain block container on this page too (I evidence) -->
+  <div class="all-inactive">Block on about</div>
+
+  <!-- I evidence for .active-somewhere: a plain block here (no flex parent).
+       index.html's A verdict still wins the merge. -->
+  <div class="active-somewhere">Block on about</div>
+
+  <!-- ❌ .secondary-only: present ONLY on this page, as a plain block —
+       justify-content has no effect (I evidence). -->
+  <div class="secondary-only">Secondary element</div>
+</body>
+</html>

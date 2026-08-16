@@ -1,0 +1,12 @@
+const realLog = console.log;
+console.log = () => {};
+const { CdpAnalyzer, DEFAULT_FIXTURES_ROOT } = await import('./out/services/cdpAnalyzer.js');
+const analyzer = new CdpAnalyzer();
+const issues = await analyzer.analyzeCssFile(DEFAULT_FIXTURES_ROOT + '/styles.css', Date.now());
+console.log = realLog;
+const relevant = issues.filter((i) => i.propertyName === 'object-fit' || i.propertyName === 'object-position');
+console.log('object-fit/object-position issues:', relevant.length);
+for (const i of relevant) console.log(`  ${i.selectorText}|${i.propertyName} -> ${i.reasonCode}`);
+const img = issues.filter((i) => i.selectorText === '.object-fit-img');
+console.log('.object-fit-img issues:', img.length, '(expected 0)');
+console.log('total issues:', issues.length);

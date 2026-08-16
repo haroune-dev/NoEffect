@@ -1,0 +1,38 @@
+/* Phase 3 fixture: each rule demonstrates exactly one provably inactive
+ * declaration (7 issues in total). Nothing here may produce a false
+ * positive. */
+
+/* position: static → offsets have no effect (2 issues). */
+.position-static {
+  position: static;
+  top: 10px;
+  left: 20px;
+}
+
+/* position: static, not an item → z-index has no effect (1 issue). */
+.static-zindex {
+  position: static;
+  z-index: 5;
+}
+
+.flex-parent {
+  display: flex;
+}
+
+/* float and clear do not apply to flex items (2 issues). */
+.flex-parent .item {
+  float: left;
+  clear: both;
+}
+
+/* vertical-align has no effect on a block-level box (1 issue). */
+.block-va {
+  display: block;
+  vertical-align: middle;
+}
+
+/* display: contents generates no box → overflow has no effect (1 issue). */
+.contents-box {
+  display: contents;
+  overflow: hidden;
+}

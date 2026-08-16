@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NoEffect Phase 6 Fixture</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Case 1: generated pseudo-elements with and without generated content -->
+  <div class="no-content-pseudo">A div whose ::before rule has no content</div>
+  <div class="no-content-after-pseudo">A div whose ::after rule has no content</div>
+  <div class="with-content-pseudo">A div whose ::before rule has content</div>
+  <div class="with-content-after-pseudo">A div whose ::after rule has content</div>
+
+  <!-- Case 2: ::first-letter property restrictions -->
+  <p class="article-text">First-letter paragraph with mixed support.</p>
+  <p class="first-letter-float">Floated first-letter paragraph.</p>
+
+  <!-- Case 3: scroll-container-dependent properties -->
+  <div class="non-scroll-box">A non-scrollable box</div>
+  <div class="scroll-box">A real scroll container</div>
+</body>
+</html>

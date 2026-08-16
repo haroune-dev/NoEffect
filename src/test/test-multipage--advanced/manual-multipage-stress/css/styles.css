@@ -1,0 +1,219 @@
+/* =========================================================
+   NOEFFECT MULTI-PAGE STRESS TEST
+   ========================================================= */
+
+/* ---------------------------------------------------------
+   1. ALWAYS INACTIVE
+   Must be inactive on every page where the element exists.
+   --------------------------------------------------------- */
+
+.always-block {
+  display: block;
+
+  justify-content: center; /* ❌ should be faded */
+  align-items: center;     /* ❌ should be faded */
+  gap: 20px;               /* ❌ should be faded */
+}
+
+
+/* ---------------------------------------------------------
+   2. ACTIVE SOMEWHERE
+   Block in some pages, flex item in another.
+   Must NEVER be dimmed because at least one real page
+   proves the property effective.
+   --------------------------------------------------------- */
+
+.active-somewhere {
+  align-self: center; /* ✅ should stay active */
+  
+}
+
+
+/* ---------------------------------------------------------
+   3. SELECTOR EXISTS ONLY IN ONE SECONDARY PAGE
+   Must still receive a verdict.
+   --------------------------------------------------------- */
+
+.secondary-only {
+  display: block;
+
+  justify-content: space-between; /* ❌ should be faded */
+}
+
+
+/* ---------------------------------------------------------
+   4. REPLACED ELEMENT DIFFERENCE
+   <div> => object-fit inactive
+   <img> => object-fit active
+   Any effective page must win.
+   --------------------------------------------------------- */
+
+.replaced-sensitive {
+  object-fit: contain; /* ✅ should stay active */
+}
+
+
+/* ---------------------------------------------------------
+   5. FLEX CONTAINER DIFFERENCE
+   block page => justify-content inactive
+   flex page  => justify-content active
+   --------------------------------------------------------- */
+
+.context-flex {
+  justify-content: center; /* ✅ should stay active */
+}
+
+
+/* ---------------------------------------------------------
+   6. GRID CONTAINER DIFFERENCE
+   block page => grid-template-columns inactive
+   grid page  => active
+   --------------------------------------------------------- */
+
+.context-grid {
+  grid-template-columns: 1fr 1fr; /* ✅ should stay active */
+}
+
+
+/* ---------------------------------------------------------
+   7. FLEX-ONLY ITEM
+   --------------------------------------------------------- */
+
+.flex-item-only {
+  flex-grow: 1; /* ✅ should stay active */
+}
+
+
+/* ---------------------------------------------------------
+   8. GRID ITEM
+   --------------------------------------------------------- */
+
+.grid-item-only {
+  grid-column: 2; /* ✅ should stay active */
+}
+
+
+/* ---------------------------------------------------------
+   9. POSITION DIFFERENCE
+   static page => top inactive
+   positioned page => active
+   --------------------------------------------------------- */
+
+.position-sensitive {
+  top: 20px; /* ✅ should stay active */
+}
+
+
+/* ---------------------------------------------------------
+   10. Z-INDEX DIFFERENCE
+   --------------------------------------------------------- */
+
+.z-sensitive {
+  z-index: 20; /* ✅ should stay active */
+}
+
+
+/* ---------------------------------------------------------
+   11. DISPLAY: CONTENTS
+   Properties requiring an actual generated box should be inactive.
+   --------------------------------------------------------- */
+
+.contents-sensitive {
+  display: contents;
+
+  width: 300px;     /* ❌ should be faded */
+  height: 100px;    /* ❌ should be faded */
+  padding: 20px;    /* ❌ should be faded */
+  background: red;  /* ❌ should be faded */
+
+  
+}
+
+
+/* ---------------------------------------------------------
+   12. TEXT OVERFLOW COMPOUND CONDITION
+   Active only when overflow + nowrap are both satisfied.
+   --------------------------------------------------------- */
+
+.truncation-sensitive {
+  text-overflow: ellipsis; /* ✅ should stay active */
+}
+
+
+/* ---------------------------------------------------------
+   13. SCROLL CONTAINER
+   --------------------------------------------------------- */
+
+.scroll-sensitive {
+  scrollbar-gutter: stable; /* ✅ should stay active */
+  overscroll-behavior: contain; /* ✅ should stay active */
+}
+
+
+/* ---------------------------------------------------------
+   14. TABLE CONTEXT
+   --------------------------------------------------------- */
+
+.table-sensitive {
+  vertical-align: middle; /* ✅ should stay active */
+}
+
+
+/* ---------------------------------------------------------
+   15. INLINE FORMATTING
+   --------------------------------------------------------- */
+
+.inline-sensitive {
+  vertical-align: middle; /* ✅ should stay active */
+}
+
+
+/* ---------------------------------------------------------
+   16. TRANSFORM / FILTER
+   --------------------------------------------------------- */
+
+.transform-sensitive {
+  transform: translateX(10px); /* ✅ should stay active */
+}
+
+.filter-sensitive {
+  filter: blur(0); /* ✅ should stay active */
+}
+
+
+/* ---------------------------------------------------------
+   17. PSEUDO ELEMENT
+   --------------------------------------------------------- */
+
+.pseudo-sensitive::before {
+  content: "•";
+  display: flex; /* generated pseudo box: should stay active */
+}
+
+
+/* ---------------------------------------------------------
+   18. MULTIPLE DECLARATIONS / CASCADE
+   --------------------------------------------------------- */
+
+.cascade-sensitive {
+  display: block;
+  justify-content: center; /* ❌ should be faded */
+}
+
+
+/* ---------------------------------------------------------
+   19. INACTIVE ONLY IN SOME PAGES
+   --------------------------------------------------------- */
+
+.mixed-page {
+  gap: 16px; /* ✅ should stay active */
+}
+
+
+/* ---------------------------------------------------------
+   20. STRESS SELECTOR
+   --------------------------------------------------------- */
+
+.deep-sensitive {
+  align-items: center; /* ✅ should stay active */
+}

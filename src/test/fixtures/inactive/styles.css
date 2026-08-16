@@ -1,0 +1,6 @@
+/* Inactive fixture: .non-flex is an explicit block container, so
+ * justify-content has no effect (computed display: block). */
+.non-flex {
+  display: block;
+  justify-content: center;
+}

@@ -1,0 +1,74 @@
+/* PR7 fixture: each rule demonstrates exactly one provably inactive
+ * declaration (11 issues in total). The active elements below must never
+ * produce an issue — nothing here may be a false positive. */
+
+/* display: inline + non-replaced element → width/height have no effect (2). */
+.inline-size {
+  display: inline;
+  width: 200px;
+  height: 100px;
+}
+
+/* Replaced inline elements honor width → active (0). */
+.inline-img {
+  display: inline;
+  width: 120px;
+}
+
+/* Table-internal boxes ignore padding (1). */
+.table-row-pad {
+  display: table-row;
+  padding: 8px;
+}
+
+/* Flex-only properties need a flex container (2). */
+.block-flexprops {
+  display: block;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+/* Grid container properties need a grid container (2). */
+.block-gridprops {
+  display: block;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: auto;
+}
+
+/* gap needs a flex/grid/multicol container (1). */
+.block-gap {
+  display: block;
+  gap: 8px;
+}
+
+/* Multicol containers honor gap → active (0). */
+.multicol-gap {
+  display: block;
+  column-count: 2;
+  gap: 8px;
+}
+
+/* position-anchor requires absolute/fixed positioning (1). */
+.static-anchor {
+  position: static;
+  position-anchor: auto;
+}
+
+/* align-content needs a block/flex/grid container (1). */
+.inline-align {
+  display: inline;
+  align-content: center;
+}
+
+/* flex-wrap: nowrap prevents align-content (1). */
+.flex-nowrap {
+  display: flex;
+  flex-wrap: nowrap;
+  align-content: center;
+}
+
+/* A real grid container keeps its grid-template → active (0). */
+.grid-ok {
+  display: grid;
+  grid-template-columns: 1fr;
+}

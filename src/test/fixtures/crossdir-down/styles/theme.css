@@ -1,0 +1,12 @@
+/* Crossdir-down fixture: the companion document lives one directory ABOVE
+ * this stylesheet and links it with a `../styles/theme.css` href. The
+ * analysis must run against the real document (a real <div>), not the
+ * synthetic wrapper: object-fit on the div is dimmed (❌) while the real
+ * <img> keeps it active (✅). */
+.object-fit-box {
+  object-fit: cover; /* ❌ should be faded */
+}
+
+.object-fit-img {
+  object-fit: cover; /* ✅ should stay active */
+}

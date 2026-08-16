@@ -1,0 +1,13 @@
+/* Crossdir-up fixture: the companion document lives one directory BELOW
+ * this stylesheet (pages/) and links it back with `../styles.css`. The real
+ * document context dims the block .non-flex (❌) while the flex .flexy
+ * stays active (✅). */
+.non-flex {
+  display: block;
+  justify-content: center; /* ❌ should be faded */
+}
+
+.flexy {
+  display: flex;
+  justify-content: center; /* ✅ should stay active */
+}

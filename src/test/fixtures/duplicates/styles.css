@@ -1,0 +1,10 @@
+/* Duplicates fixture: justify-content is written three times in ONE rule.
+ * The first two copies are overridden by the third (the cascade winner),
+ * and the rule's element is a block box — so all three are inactive:
+ * the earlier two with the override verdict, the last by context. */
+.dup-ext {
+  display: block;
+  justify-content: center;
+  justify-content: center;
+  justify-content: flex-end;
+}

@@ -1,0 +1,68 @@
+/* Phase 6 fixture — PR Level 3 rules (10 issues).
+   Pseudo-element existence (::before/::after content), ::first-letter
+   property eligibility and scroll-container-dependent properties. The
+   active controls below must never produce an issue. */
+
+/* ── Case 1: generated pseudo-elements (5 issues) ─────────────────────── */
+
+.no-content-pseudo::before {
+  /* content is MISSING → the pseudo generates no box */
+  width: 100px;              /* inactive */
+  height: 50px;              /* inactive */
+  background-color: red;     /* inactive */
+  display: block;            /* inactive */
+}
+
+.no-content-after-pseudo::after {
+  /* content is MISSING → the pseudo generates no box */
+  display: grid;             /* inactive */
+}
+
+.with-content-pseudo::before {
+  content: "Hi";             /* active: generates the pseudo box */
+  display: flex;             /* active: a real generated flex box */
+  justify-content: center;   /* active: the generated flex box is analyzed normally */
+  position: relative;        /* active */
+  width: 100px;              /* active */
+  height: 30px;              /* active */
+  background-color: lightblue; /* active */
+}
+
+.with-content-after-pseudo::after {
+  content: "After";          /* active: generates the pseudo box */
+  display: grid;             /* active: a real generated grid box */
+  grid-template-columns: 1fr; /* active: the generated grid box is analyzed normally */
+  position: relative;        /* active */
+  width: 100px;              /* active */
+  height: 30px;              /* active */
+}
+
+/* ── Case 2: ::first-letter eligibility (2 issues) ────────────────────── */
+
+.article-text::first-letter {
+  font-size: 200%;           /* active: supported on the first letter */
+  color: #333;               /* active */
+  margin-top: 15px;          /* inactive: the first-letter box is a non-replaced inline box */
+  display: flex;             /* inactive: display is not a first-letter property */
+  position: absolute;        /* inactive: positioning is not a first-letter property */
+}
+
+.first-letter-float::first-letter {
+  font-size: 200%;           /* active */
+  float: left;               /* active: a floated first-letter is a float box */
+  margin-right: 8px;         /* active: the floated box honors margins */
+}
+
+/* ── Case 3: scroll-container-dependent properties (2 issues) ────────── */
+
+.non-scroll-box {
+  overflow: visible;
+  scrollbar-gutter: stable;      /* inactive: not a scroll container */
+  overscroll-behavior: contain;  /* inactive: not a scroll container */
+}
+
+.scroll-box {
+  overflow: auto;
+  scrollbar-gutter: stable;      /* active: real scroll container */
+  overscroll-behavior: contain;  /* active: real scroll container */
+}

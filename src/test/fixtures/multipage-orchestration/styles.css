@@ -1,0 +1,27 @@
+/* ── multipage-orchestration fixture (Phase 6) ─────────────────────────────
+ * Two companion documents link this stylesheet: index.html and about.html.
+ * Expected MERGED lattice (A ⊔ I = A, ⊥ ⊔ I = I):
+ *
+ *   .all-inactive     index = I   about = I   → I    ❌ dimmed
+ *   .active-somewhere index = A   about = I   → A    ✅ never dimmed
+ *   .secondary-only   index = ⊥   about = I   → I    ❌ dimmed
+ */
+
+.flex-container {
+  display: flex;
+}
+
+.all-inactive {
+  display: block;
+  justify-content: center; /* ❌ inactive: a block on BOTH index.html and about.html */
+  color: #333;
+}
+
+.active-somewhere {
+  align-self: center; /* ✅ active: flex child in index.html (A), so never dimmed */
+}
+
+.secondary-only {
+  display: block;
+  justify-content: space-between; /* ❌ inactive: block in about.html, absent from index.html */
+}

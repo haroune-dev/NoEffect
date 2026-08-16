@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>NoEffect Multi Page - Index</title>
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+
+  <div class="always-block">
+    always inactive
+  </div>
+
+  <div class="active-somewhere">
+    index: normal block
+  </div>
+
+  <div class="replaced-sensitive">
+    div is NOT replaced
+  </div>
+
+  <div class="context-flex">
+    index: block
+  </div>
+
+  <div class="context-grid">
+    index: block
+  </div>
+
+  <div class="position-sensitive">
+    index: static
+  </div>
+
+  <div class="z-sensitive">
+    index: static
+  </div>
+
+  <div class="contents-sensitive">
+    contents
+  </div>
+
+  <div class="truncation-sensitive"
+       style="width:100px; overflow:hidden; white-space:nowrap;">
+    long long long long long text
+  </div>
+
+  <div class="scroll-sensitive"
+       style="overflow:auto;">
+    scroll
+  </div>
+
+  <span class="table-sensitive">
+    inline
+  </span>
+
+  <span class="inline-sensitive">
+    inline
+  </span>
+
+  <div class="transform-sensitive"></div>
+  <div class="filter-sensitive"></div>
+
+  <div class="pseudo-sensitive">pseudo</div>
+
+  <div class="cascade-sensitive"></div>
+
+  <div class="mixed-page"></div>
+
+</body>
+</html>

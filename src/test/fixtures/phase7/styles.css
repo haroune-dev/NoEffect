@@ -1,0 +1,46 @@
+/* Phase 7 fixture — PR "Context Resolution Hardening" (2 issues).
+   The two provably-inactive declarations must be flagged; every active
+   control below must stay silent. */
+
+/* ── Case 1: broken table formatting context (1 issue) ─────────────────── */
+
+.broken-table {
+  display: block;          /* the table box is destroyed */
+}
+
+.cell-broken {
+  vertical-align: middle;  /* inactive: no table box ancestor */
+}
+
+.intact-table {
+  /* no display override — the UA table box survives */
+}
+
+.cell-intact {
+  vertical-align: middle;  /* active: real table formatting context */
+}
+
+/* ── Case 2: explicit display override drops the placement context (1 issue) ── */
+
+.flex-container {
+  display: flex;
+}
+
+.place-good {
+  place-self: center;      /* active: implicit flex item */
+}
+
+.place-bad {
+  display: block;          /* the explicit block override */
+  place-self: center;      /* inactive: placement context removed */
+}
+
+/* ── Case 3: flex stays active on a real flex child (control) ──────────── */
+
+.flex-wrap {
+  display: flex;
+}
+
+.flex-child {
+  flex: 1;                 /* active: real flex child */
+}

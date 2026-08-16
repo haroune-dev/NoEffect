@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>NoEffect Multi Page - About</title>
+  <link rel="stylesheet" href="../css/styles.css">
+
+  <style>
+    .replaced-sensitive {
+      display: block;
+    }
+
+    .context-flex {
+      display: flex;
+    }
+
+    .mixed-page {
+      display: flex;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="always-block"></div>
+
+  <div style="display: flex;">
+    <div class="active-somewhere">
+      block inside a flex container: a real flex item
+    </div>
+  </div>
+
+  <div class="replaced-sensitive"></div>
+
+  <div class="context-flex"></div>
+
+  <div class="mixed-page"></div>
+
+</body>
+</html>

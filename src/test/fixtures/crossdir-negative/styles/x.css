@@ -1,0 +1,14 @@
+/* Crossdir-negative fixture: the ONLY document linking this stylesheet
+ * lives under node_modules (pruned by the eligibility globs), so no
+ * companion exists and the synthetic wrapper page runs the analysis. The
+ * wrapper fabricates a block <div> for .block (dimmed, ❌) and a flex
+ * <div> for .flexy (active, ✅). */
+.block {
+  display: block;
+  justify-content: center; /* ❌ should be faded */
+}
+
+.flexy {
+  display: flex;
+  justify-content: center; /* ✅ should stay active */
+}

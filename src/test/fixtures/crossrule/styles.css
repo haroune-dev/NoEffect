@@ -1,0 +1,11 @@
+/* Cross-rule cascade fixture: ONE element, TWO rules, ONE property.
+ * The compound selector has the higher specificity (0,2,0) and wins the
+ * cascade for the matched button, so the base rule's declaration is
+ * reported as a cross-rule override loser. */
+.action-button {
+  color: #ffffff;
+}
+
+.action-button.is-danger {
+  color: #ff4d4f;
+}

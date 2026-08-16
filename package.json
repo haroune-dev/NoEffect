@@ -1,0 +1,214 @@
+{
+  "name": "no-effect",
+  "displayName": "NoEffect — Inactive CSS Inspector",
+  "description": "Highlights CSS declarations that have no effect in the rendered page, using a real Chromium engine over the Chrome DevTools Protocol as ground truth — exactly like DevTools. Analyzes stylesheets, embedded <style> blocks and inline style=\"\" attributes, then dims inactive properties with a DevTools-style tooltip right in the editor.",
+  "version": "0.9.0",
+  "publisher": "haroune-dev",
+  "preview": true,
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "icon": "./images/icon.png",
+  "galleryBanner": {
+    "color": "#1E1E1E",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Linters",
+    "Programming Languages"
+  ],
+  "keywords": [
+    "css",
+    "inactive",
+    "no-effect",
+    "devtools",
+    "chromium",
+    "cdp",
+    "layout",
+    "rendering",
+    "html"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true,
+      "description": "NoEffect must ACTIVATE in untrusted workspaces to show its trust notification ('NoEffect needs a trusted workspace' with Trust Workspace / Diagnose Setup actions). Analysis itself stays safely blocked: the readiness gate reports the workspace-blocked state, the browser is never launched, and Diagnose Setup explains why."
+    },
+    "virtualWorkspaces": false
+  },
+  "activationEvents": [
+    "onStartupFinished",
+    "onLanguage:css",
+    "onLanguage:html",
+    "onCommand:noEffect.analyzeCurrentFile",
+    "onCommand:noEffect.clearDecorations",
+    "onCommand:noEffect.debugShowFirstRun",
+    "onCommand:noEffect.showStatus",
+    "onCommand:noEffect.diagnoseSetup",
+    "onCommand:noEffect.showOutputLogs",
+    "onCommand:noEffect.restartAnalysisSession",
+    "onCommand:noEffect.clearCache"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "noEffect.analyzeCurrentFile",
+        "title": "NoEffect: Analyze CSS Inactive Properties"
+      },
+      {
+        "command": "noEffect.clearDecorations",
+        "title": "NoEffect: Clear All Highlights"
+      },
+      {
+        "command": "noEffect.showStatus",
+        "title": "NoEffect: Show Status"
+      },
+      {
+        "command": "noEffect.diagnoseSetup",
+        "title": "NoEffect: Diagnose Setup"
+      },
+      {
+        "command": "noEffect.showOutputLogs",
+        "title": "NoEffect: Show Output Logs"
+      },
+      {
+        "command": "noEffect.restartAnalysisSession",
+        "title": "NoEffect: Restart Analysis Session"
+      },
+      {
+        "command": "noEffect.clearCache",
+        "title": "NoEffect: Clear Cache"
+      },
+      {
+        "command": "noeffect.jumpAndHighlight",
+        "title": "NoEffect: Jump To Overriding Declaration"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "noeffect.jumpAndHighlight",
+          "when": "false"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "noEffect.debugShowFirstRun",
+        "key": "ctrl+alt+shift+n",
+        "mac": "cmd+alt+shift+n"
+      }
+    ],
+    "configuration": {
+      "title": "NoEffect",
+      "properties": {
+        "noEffect.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable the NoEffect extension."
+        },
+        "noEffect.analyzeOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run analysis automatically when a CSS or HTML file is saved."
+        },
+        "noEffect.analyzeOnType": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Run analysis automatically after a pause in typing (debounced by `noEffect.debounceMs`).\n\n> **Experimental** — live typing analysis is not fully supported: the extension reads **saved files from disk**, so unsaved (dirty) files are skipped with a `FILE_UNSAVED` notice until you save. Enable only if you accept the extra Chromium churn."
+        },
+        "noEffect.debounceMs": {
+          "type": "number",
+          "default": 1500,
+          "minimum": 500,
+          "maximum": 10000,
+          "description": "Debounce delay in milliseconds before running analysis after typing stops."
+        },
+        "noEffect.highlightStyle": {
+          "type": "string",
+          "enum": [
+            "both",
+            "iconOnly",
+            "dimOnly"
+          ],
+          "default": "both",
+          "enumDescriptions": [
+            "Show both the inline warning icon and dim the property",
+            "Show only the inline warning icon",
+            "Only dim the property text"
+          ],
+          "description": "Choose which visual indicators to display for inactive properties."
+        },
+        "noEffect.chromiumPath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Custom path to a Chromium-based browser executable. Leave empty to auto-detect common installs. A machine-level setting: workspace values are ignored in untrusted workspaces."
+        },
+        "noEffect.ignoredFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Glob patterns for files to exclude from analysis (e.g. 'vendor/**', 'node_modules/**'). Built-in defaults: node_modules, bower_components, vendor, dist, build, coverage, out, VCS and IDE directories, and minified/bundle CSS."
+        },
+        "noEffect.maxFileSizeKb": {
+          "type": "number",
+          "default": 512,
+          "minimum": 16,
+          "maximum": 65536,
+          "description": "Maximum file size in kilobytes for a single CSS/HTML file to be analyzed. Larger files are skipped."
+        },
+        "noEffect.companionSearchDepth": {
+          "type": "number",
+          "default": 6,
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Maximum directory depth of the companion-document search: when a CSS file has no linking HTML in its own directory, NoEffect looks for one in the surrounding project tree (depth 1 = one level up and down)."
+        },
+        "noEffect.companionMaxCandidates": {
+          "type": "number",
+          "default": 500,
+          "minimum": 100,
+          "maximum": 2000,
+          "description": "Maximum number of scan operations (directories visited + candidate HTML documents) per companion-document search. The search stops once the bound is reached; very large projects may need a higher bound."
+        },
+        "noEffect.maxCompanions": {
+          "type": "number",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Maximum number of linking HTML documents analyzed for a CSS file (Top-K evidence budget). More companions means more real ground truth: a declaration stays active when it is effective in ANY analyzed document. This is an evidence budget, not a correctness guarantee — raising it analyzes more pages, lowering it analyzes fewer."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "vscode:prepublish": "npm run build",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "test": "npm run compile && node --test \"out/test/unit/*.test.js\"",
+    "test:integration": "npm run compile && node --test \"out/test/integration/*.test.js\"",
+    "test:smoke": "npm run compile && npm run build && node out/test/smoke/runSmoke.js stable",
+    "test:smoke:min": "npm run compile && npm run build && node out/test/smoke/runSmoke.js 1.85.0",
+    "test:smoke:all": "npm run compile && npm run build && node out/test/smoke/runSmoke.js 1.85.0 && node out/test/smoke/runSmoke.js stable",
+    "test:pack": "npm run compile && npm run build && node out/test/smoke/runSmokeVsix.js"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.0",
+    "@types/vscode": "1.85.0",
+    "@types/ws": "^8.18.1",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "@vscode/test-electron": "^2.4.1",
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.28.1",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.0",
+    "ws": "^8.21.1"
+  }
+}

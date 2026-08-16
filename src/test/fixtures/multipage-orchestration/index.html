@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Multipage Orchestration - Home</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- ❌ .all-inactive: plain block container on this page too (I evidence) -->
+  <div class="all-inactive">Block on home</div>
+
+  <!-- ✅ .active-somewhere: FLEX CHILD inside .flex-container — align-self
+       has effect here (A evidence); about.html only adds I, so A wins. -->
+  <div class="flex-container">
+    <div class="active-somewhere">Flex child</div>
+  </div>
+
+  <!-- .secondary-only deliberately ABSENT on this page: index.html provides
+       ⊥ evidence only, about.html's I verdict dims it. -->
+</body>
+</html>

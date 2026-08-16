@@ -1,0 +1,98 @@
+/* Phase 5 fixture — Level 2 advanced-context composite rules (17 issues).
+   Each inactive declaration demonstrates ONE compound condition. The
+   active controls below must never produce an issue. */
+
+/* ── Case 1: out-of-flow flex/grid items (8 issues) ─────────────────── */
+
+.flex-parent {
+  display: flex;
+}
+
+.flex-item-ok {
+  flex: 1;                /* active: in-flow flex item */
+}
+
+.abs-flex {
+  position: absolute;     /* out-of-flow → no longer a flex item */
+  flex: 1;                /* inactive */
+  flex-grow: 2;           /* inactive */
+  align-self: center;     /* inactive */
+  order: 3;               /* inactive */
+}
+
+.grid-parent {
+  display: grid;
+}
+
+.grid-item-ok {
+  grid-column: 1 / 3;     /* active: in-flow grid item */
+}
+
+.abs-grid {
+  position: absolute;     /* out-of-flow → no longer a grid item */
+  grid-column: 1 / 3;     /* inactive */
+  grid-column-start: 1;   /* inactive */
+  grid-area: 1 / 1 / 2 / 3; /* inactive */
+  justify-self: center;   /* inactive */
+}
+
+/* ── Case 2: composite text-truncation prerequisites (2 issues) ────── */
+
+.trunc-missing-overflow {
+  white-space: nowrap;
+  text-overflow: ellipsis;   /* inactive: overflow is visible */
+}
+
+.trunc-missing-nowrap {
+  overflow: hidden;
+  text-overflow: ellipsis;   /* inactive: white-space allows wrapping */
+}
+
+.trunc-valid {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;   /* active: both prerequisites are met */
+}
+
+/* ── Case 3: inline non-replaced suppression (6 issues) ─────────────── */
+
+.inline-geometry {
+  display: inline;
+  margin-top: 30px;          /* inactive: vertical margin on inline */
+  margin-bottom: 30px;       /* inactive: vertical margin on inline */
+  padding-top: 10px;         /* inactive: vertical padding on inline */
+  padding-bottom: 10px;      /* inactive: vertical padding on inline */
+  transform: rotate(45deg);  /* inactive: non-transformable inline */
+  perspective: 500px;        /* inactive: non-transformable inline */
+}
+
+.inline-horizontal-padding {
+  display: inline;
+  padding-left: 8px;         /* active: horizontal padding widens the line */
+  padding-right: 8px;        /* active: horizontal padding widens the line */
+}
+
+.inline-img {
+  display: inline;
+  transform: rotate(45deg);  /* active: replaced element honors transforms */
+}
+
+.block-transform {
+  display: block;
+  transform: rotate(45deg);  /* active: block box honors transforms */
+}
+
+/* ── Case 4: place-self grouped with the place-* family (1 issue) ───── */
+
+.plain-block {
+  display: block;
+  place-self: center;        /* inactive: not a flex/grid item */
+}
+
+.flex-place-parent {
+  display: flex;
+}
+
+.flex-item-place {
+  place-self: center;        /* active: flex item */
+}

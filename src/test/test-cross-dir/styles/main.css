@@ -1,0 +1,10 @@
+.container {
+  display: block;
+  justify-content: center; /*  inactive: block layout ignores justify-content */
+  color: #333;
+}
+
+.text {
+  font-size: 16px;
+  align-self: center; /*  inactive: align-self requires flex/grid/grid-item context */
+}

@@ -1,0 +1,11 @@
+/* Crossdir-root fixture: the companion document links this stylesheet with
+ * a ROOT-RELATIVE href (`/css/theme.css`). The stylesheet is served from
+ * the search root, exactly where the browser requests it. The real <div>
+ * dims object-fit (❌), the real <img> keeps it active (✅). */
+.object-fit-box {
+  object-fit: cover; /* ❌ should be faded */
+}
+
+.object-fit-img {
+  object-fit: cover; /* ✅ should stay active */
+}

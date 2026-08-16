@@ -1,0 +1,8 @@
+/* Crossdir-multi fixture: three documents link this stylesheet. The root
+ * index.html (distance 1) wins over the two pages/ documents (distance 2,
+ * index.html then alphabetical) — the block .non-flex dims (❌) because the
+ * root page is the closest linking document. */
+.non-flex {
+  display: block;
+  justify-content: center; /* ❌ should be faded */
+}

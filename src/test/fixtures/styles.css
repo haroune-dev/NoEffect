@@ -1,0 +1,305 @@
+/* ==========================================================
+   Base
+========================================================== */
+
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 24px;
+  line-height: 1.5;
+}
+
+.page {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.group {
+  margin-bottom: 40px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #ddd;
+}
+
+.group h2 {
+  margin: 0 0 14px;
+}
+
+/* ==========================================================
+   Level 1 — Basic cases
+========================================================== */
+
+.static-box {
+  position: static;   /* ✅ should stay active */
+  top: 20px;        /* ❌ should be faded */
+  right: 20px;      /* ❌ should be faded */
+  bottom: 20px;     /* ❌ should be faded */
+  left: 20px;       /* ❌ should be faded */
+  z-index: 10;      /* ❌ should be faded */
+  padding: 10px;
+  margin: 12px 0;
+  border: 1px solid #999;
+}
+
+.flex-container {
+  display: flex;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid #999;
+  position: relative;
+}
+
+.flex-item {
+  padding: 8px;
+  border: 1px solid #bbb;
+}
+
+.flex-item-active {
+  flex: 1;          /* ✅ should stay active */
+  order: 1;         /* ✅ should stay active */
+}
+
+.flex-item-absolute {
+  position: absolute;  /* out-of-flow */
+  flex: 1;             /* ❌ should be faded */
+  order: 2;            /* ❌ should be faded */
+  align-self: center;  /* ❌ should be faded */
+  top: 10px;
+  right: 10px;
+  background: #f8f0f0;
+}
+
+.grid-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid #999;
+  position: relative;
+}
+
+.grid-item {
+  padding: 8px;
+  border: 1px solid #bbb;
+}
+
+.grid-item-active {
+  grid-column: 2;      /* ✅ should stay active */
+  grid-row: 1;         /* ✅ should stay active */
+  justify-self: center;/* ✅ should stay active */
+}
+
+.grid-item-absolute {
+  position: absolute;     /* out-of-flow */
+  grid-column: 2;         /* ❌ should be faded */
+  grid-row: 1;            /* ❌ should be faded */
+  justify-self: center;   /* ❌ should be faded */
+  top: 10px;
+  right: 10px;
+  background: #f0f8ff;
+}
+
+.non-flex {
+  display: block;
+  padding: 10px;
+  margin: 12px 0;
+  border: 1px solid #999;
+
+  justify-content: center; /* ❌ should be faded */
+  align-items: center;     /* ❌ should be faded */
+  align-content: center;   /* ❌ should be faded */
+  flex-wrap: wrap;         /* ❌ should be faded */
+  gap: 16px;               /* ❌ should be faded */
+  place-items: center;     /* ❌ should be faded */
+  place-content: center;   /* ❌ should be faded */
+  justify-content: center;
+}
+
+/* ==========================================================
+   Level 2 — Compound cases
+========================================================== */
+
+.truncate {
+  width: 220px;
+  padding: 6px;
+  margin: 12px 0;
+  border: 1px solid #999;
+}
+
+.truncate-good {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis; /* ✅ should stay active */
+}
+
+.truncate-bad-overflow {
+  overflow: visible;       /* missing prerequisite */
+  white-space: nowrap;
+  text-overflow: ellipsis; /* ❌ should be faded */
+}
+
+.truncate-bad-nowrap {
+  overflow: hidden;
+  white-space: normal;     /* missing prerequisite */
+  text-overflow: ellipsis; /* ❌ should be faded */
+}
+
+.place-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid #999;
+}
+
+.place-self-good {
+  place-self: center; /* ✅ should stay active */
+  padding: 8px;
+  border: 1px solid #bbb;
+}
+
+.place-self-bad {
+  display: block;
+  place-self: center; /* ❌ should be faded */
+  padding: 8px;
+  border: 1px solid #bbb;
+}
+
+.inline-box {
+  margin: 12px 0;
+}
+
+.inline-target {
+  display: inline;
+  margin-top: 10px;             /* ❌ should be faded */
+  margin-bottom: 10px;          /* ❌ should be faded */
+  transform: translateY(12px);  /* ❌ should be faded */
+  padding-top: 6px;             /* ❌ should be faded */
+  padding-bottom: 6px;          /* ❌ should be faded */
+  background: #eef;
+}
+
+.table-wrapper {
+  margin: 12px 0;
+}
+
+.real-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.table-cell-active {
+  vertical-align: middle; /* ✅ should stay active */
+  padding: 8px;
+  border: 1px solid #bbb;
+}
+
+.broken-table-context {
+  display: block;
+  margin: 12px 0;
+  padding: 10px;
+  border: 1px solid #999;
+}
+
+.table-cell-faded {
+  vertical-align: middle; /* ❌ should be faded */
+  padding: 8px;
+  border: 1px solid #bbb;
+}
+
+/* ==========================================================
+   Level 3 — Pseudo / scroll / DOM constraints
+========================================================== */
+
+.pseudo-before-no-content::before {
+  position: absolute; /* should not behave as a real generated box without content */
+  top: 0;
+  left: 0;
+  width: 18px;
+  height: 18px;
+  background: red;
+}
+
+.pseudo-before-with-content::before {
+  content: "BEFORE"; /* required */
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 72px;
+  height: 18px;
+  background: green;
+  color: white;
+}
+
+.pseudo-after-no-content::after {
+  display: block; /* should not be treated as a real pseudo box without content */
+  margin-left: 8px;
+  padding: 2px 4px;
+  background: blue;
+  color: white;
+}
+
+.pseudo-after-with-content::after {
+  content: "AFTER"; /* required */
+  display: block;
+  margin-left: 8px;
+  padding: 2px 4px;
+  background: purple;
+  color: white;
+}
+
+.first-letter-case::first-letter {
+  display: flex;              /* ❌ should be faded */
+  position: absolute;         /* ❌ should be faded */
+  transform: translateY(8px); /* ❌ should be faded */
+  margin-top: 8px;            /* ❌ should be faded */
+  font-size: 38px;
+  color: #b00;
+  font-weight: 700;
+}
+
+.scroll-container {
+  width: 320px;
+  height: 120px;
+  overflow: auto;                   /* required for scroll-container */
+  scrollbar-gutter: stable both-edges; /* ✅ should stay active */
+  overscroll-behavior: contain;     /* ✅ should stay active */
+  border: 1px solid #333;
+  margin: 12px 0;
+}
+
+.scroll-inner {
+  height: 280px;
+  padding: 8px;
+}
+
+.non-scroll-container {
+  width: 320px;
+  height: 120px;
+  overflow: visible;                  /* no real scroll container */
+  scrollbar-gutter: stable both-edges; /* ❌ should be faded */
+  overscroll-behavior: contain;       /* ❌ should be faded */
+  border: 1px solid #333;
+  margin: 12px 0;
+}
+
+.replaced-image {
+  width: 120px;
+  height: 80px;
+  object-fit: cover;       /* ✅ should stay active */
+  object-position: center; /* ✅ should stay active */
+  border: 1px solid #999;
+  display: block;
+  margin: 12px 0;
+}
+
+.non-replaced-object-fit {
+  object-fit: cover;       /* ❌ should be faded */
+  object-position: center; /* ❌ should be faded */
+  width: 120px;
+  height: 80px;
+  border: 1px solid #999;
+  margin: 12px 0;
+} 

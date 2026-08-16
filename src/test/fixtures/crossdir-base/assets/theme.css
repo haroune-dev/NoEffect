@@ -1,0 +1,14 @@
+/* Crossdir-base fixture: the companion document links this stylesheet
+ * through a `<base href="../assets/">` + a relative `theme.css` href. The
+ * browser resolves the pair to /assets/theme.css — the same answer the
+ * matcher and the DevServer derive from the shared URL model. The block
+ * .non-flex dims (❌), the flex .flexy stays active (✅). */
+.non-flex {
+  display: block;
+  justify-content: center; /* ❌ should be faded */
+}
+
+.flexy {
+  display: flex;
+  justify-content: center; /* ✅ should stay active */
+}
