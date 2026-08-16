@@ -29,7 +29,7 @@ export interface PlannedDecoration {
   iconAnchorRange: CssLocation;
 }
 
-export function isValidRange(range: CssLocation | undefined): range is CssLocation {
+function isValidRange(range: CssLocation | undefined): range is CssLocation {
   if (!range) {
     return false;
   }

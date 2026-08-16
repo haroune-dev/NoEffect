@@ -13,12 +13,6 @@ import {
   isValidJumpTarget,
   jumpTargetFromLocation,
 } from './overrideJumpTarget';
-import {
-  buildWinnerBadgeHover,
-  OverrideWinnerBadge,
-  planOverrideWinnerBadges,
-  signatureFromWinnerBadges,
-} from './overrideWinnerPlanner';
 
 interface IconHoverEntry {
   /** The one-character source anchor immediately before the inline icon. */
@@ -34,17 +28,34 @@ interface IconHoverEntry {
  *   1. **Dim decoration** — reduces the opacity of the property text.
  *   2. **Inline icon decoration** — places a ⚠ warning icon immediately
  *      after the CSS declaration with a hover tooltip explaining the issue.
- *   3. **Winning gutter decoration** — places a `→|` badge in the glyph
- *      margin of the declaration that WON a cascade override, with a
- *      hover tooltip listing the declaration(s) it overrode.
+ *   3. **Winning gutter decoration** — the transient `→|` badge shown in
+ *      the glyph margin of the winning declaration while a
+ *      `noeffect.jumpAndHighlight` navigation is active. It is NEVER part
+ *      of the static analysis pass: no badge is rendered when a file is
+ *      opened or analyzed, and the jump controller dismisses it on the
+ *      next selection change (see OverrideJumpController).
  *
  * The first two can be independently toggled via user settings; the
- * winner badge is derived from the same issues and always rendered.
+ * transient badge is owned by this manager only for its decoration TYPE
+ * (theme-aware, recreated on color-theme change).
  */
 export class DecorationManager {
   private dimDecorationType: vscode.TextEditorDecorationType | null = null;
   private iconDecorationType: vscode.TextEditorDecorationType | null = null;
   private winningGutterDecorationType: vscode.TextEditorDecorationType | null = null;
+
+  /**
+   * The applied transient winner badge, if any: the editor it was shown
+   * on plus the decoration-type instance it was applied with. Tracking
+   * the instance matters because color-theme changes dispose and recreate
+   * the type — clearing must target the instance actually in use (or the
+   * already-disposed one, whose visuals vanished with the disposal).
+   */
+  private transientBadge: {
+    editor: vscode.TextEditor;
+    type: vscode.TextEditorDecorationType;
+  } | null = null;
+
   private extensionPath: string;
 
   /** Track which files currently have decorations applied */
@@ -143,10 +154,10 @@ export class DecorationManager {
    *
    * Every range comes from the real mapped local declaration (PR4):
    * the declaration range is dimmed and the end-anchor range hosts the
-   * inline icon. Additionally, the override-winner badges are planned
-   * from the same issues and rendered in the gutter of the winning
-   * declaration lines. When there is nothing to render at all, previously
-   * applied decorations for this editor are cleared instead.
+   * inline icon. The transient override-winner badge is NOT part of this
+   * static pass — it is shown only by the jump controller. When there is
+   * nothing to render, previously applied decorations for this editor are
+   * cleared instead.
    *
    * Decoration cache (performance PR): when the planned state equals the
    * state already applied to this document, the editor is left untouched —
@@ -162,26 +173,20 @@ export class DecorationManager {
     this.lastIssues.set(filePath, issues);
 
     const plan = planDecorations(issues, filePath);
-    const winnerBadges = planOverrideWinnerBadges(issues, filePath);
-    const signature = [signatureFromPlan(plan), signatureFromWinnerBadges(winnerBadges)].join(
-      '#'
-    );
+    const signature = signatureFromPlan(plan);
 
     if (!force && this.appliedSignatures.get(filePath) === signature) {
       logger.info('[Decorations] Skipping — decoration state unchanged');
       return;
     }
 
-    if (plan.length === 0 && winnerBadges.length === 0) {
+    if (plan.length === 0) {
       this.clearDecorationsForEditor(editor);
       this.appliedSignatures.set(filePath, signature);
       return;
     }
 
-    logger.info(
-      `[Decorations] Applying ${plan.length} issue${plan.length === 1 ? '' : 's'} ` +
-        `and ${winnerBadges.length} override-winner badge${winnerBadges.length === 1 ? '' : 's'}`
-    );
+    logger.info(`[Decorations] Applying ${plan.length} issue${plan.length === 1 ? '' : 's'}`);
 
     // Dimming uses the full local declaration range resolved by PR4.
     const dimRanges: vscode.DecorationOptions[] = plan.map(({ dimRange }) => ({
@@ -235,22 +240,6 @@ export class DecorationManager {
       this.iconHoverEntries.delete(filePath);
     }
 
-    // Override-winner gutter badges on the winning declaration lines.
-    // The hover message is attached directly to the decoration options:
-    // hover providers cannot serve the glyph margin, and unlike the inline
-    // icon there is no second hover source that could duplicate it.
-    if (this.winningGutterDecorationType) {
-      const winnerOptions = winnerBadges.map((badge) => ({
-        range: this.toVscodeRange(badge.winnerRange),
-        hoverMessage: this.winnerHoverMessage(badge),
-      }));
-      editor.setDecorations(this.winningGutterDecorationType, winnerOptions);
-
-      if (winnerOptions.length > 0) {
-        logger.info('[Decorations] Override-winner gutter badges applied');
-      }
-    }
-
     this.decoratedFiles.add(filePath);
     this.appliedSignatures.set(filePath, signature);
     logger.info('[Decorations] Decorations updated successfully');
@@ -266,8 +255,14 @@ export class DecorationManager {
     if (this.iconDecorationType) {
       editor.setDecorations(this.iconDecorationType, []);
     }
+    // Ghost safety net for the transient badge: a document change/close
+    // must not leave a stale →| behind even if the selection listener
+    // somehow missed (e.g. the edit came from another tool).
     if (this.winningGutterDecorationType) {
       editor.setDecorations(this.winningGutterDecorationType, []);
+    }
+    if (this.transientBadge?.editor === editor) {
+      this.transientBadge = null;
     }
     this.decoratedFiles.delete(editor.document.uri.fsPath);
     this.iconHoverEntries.delete(editor.document.uri.fsPath);
@@ -363,6 +358,50 @@ export class DecorationManager {
   }
 
   /**
+   * Show the TRANSIENT override-winner gutter badge (`→|`) on one range.
+   *
+   * Triggered exclusively by `noeffect.jumpAndHighlight` (the hover link
+   * on an overridden declaration) — never by the static analysis pass.
+   * Any previously applied transient badge is cleared first, so repeated
+   * jumps can never stack or orphan badges. No-op before
+   * `createDecorationTypes` ran.
+   */
+  showTransientWinnerBadge(editor: vscode.TextEditor, range: vscode.Range): void {
+    this.clearTransientWinnerBadge();
+
+    if (!this.winningGutterDecorationType) {
+      return;
+    }
+
+    editor.setDecorations(this.winningGutterDecorationType, [{ range }]);
+    this.transientBadge = { editor, type: this.winningGutterDecorationType };
+    logger.info('[Decorations] Transient override-winner badge shown');
+  }
+
+  /**
+   * Clear the transient override-winner badge, if one is applied. Safe to
+   * call repeatedly (rapid link clicks, editor close, dispose). The
+   * setDecorations call targets the tracked type INSTANCE: after a theme
+   * change the current type is a fresh object while the old one (with the
+   * badge) was disposed by `disposeDecorationTypes`, whose disposal has
+   * already removed the rendered badge.
+   */
+  clearTransientWinnerBadge(): void {
+    if (!this.transientBadge) {
+      return;
+    }
+
+    const { editor, type } = this.transientBadge;
+    this.transientBadge = null;
+    try {
+      editor.setDecorations(type, []);
+    } catch {
+      // The editor may be closed already — nothing to clear.
+    }
+    logger.info('[Decorations] Transient override-winner badge cleared');
+  }
+
+  /**
    * The public decoration API cannot give an `after` attachment a range of
    * its own. The planner anchors it to the final source character of the
    * declaration (normally the semicolon) via the PR4 end-anchor range, so
@@ -377,22 +416,6 @@ export class DecorationManager {
   }
 
   /**
-   * Tooltip for one override-winner gutter badge. The pure planner builds
-   * the markdown (override listing + jump link); `isTrusted` is enabled
-   * ONLY when a command link is present, exactly like the inline-icon
-   * hover message.
-   */
-  private winnerHoverMessage(badge: OverrideWinnerBadge): vscode.MarkdownString {
-    const { markdown, hasCommandLink } = buildWinnerBadgeHover(badge);
-    const md = new vscode.MarkdownString();
-    md.appendMarkdown(markdown);
-    if (hasCommandLink) {
-      md.isTrusted = true;
-    }
-    return md;
-  }
-
-  /**
    * Dispose of decoration types (but not the manager itself).
    * Called when settings change so types can be recreated.
    */
@@ -403,6 +426,9 @@ export class DecorationManager {
     this.dimDecorationType = null;
     this.iconDecorationType = null;
     this.winningGutterDecorationType = null;
+    // Disposing the type above already removed any rendered transient
+    // badge; the tracked (now disposed) pair must not be reused.
+    this.transientBadge = null;
   }
 
   /**
@@ -478,6 +504,7 @@ export class DecorationManager {
    * Full disposal — call during extension deactivation.
    */
   dispose(): void {
+    this.clearTransientWinnerBadge();
     this.clearAllDecorations();
     this.iconHoverEntries.clear();
     this.disposeDecorationTypes();

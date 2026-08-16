@@ -352,17 +352,18 @@ export function activateExtension(context: vscode.ExtensionContext): vscode.Disp
   // ── Interactive override jump (hover command link) ──
   // The hover tooltip of an overridden declaration embeds a trusted
   // command link to `noeffect.jumpAndHighlight`. The controller owns the
-  // single-flash invariant (one active highlight + one timer) and clears
-  // any active flash on editor/document close or change so a highlight
-  // can never linger as a ghost.
-  const overrideJump = new OverrideJumpController();
+  // single-flash AND single-badge invariants: one active highlight + one
+  // transient `→|` winner gutter badge, both cleared on the next
+  // selection change after the jump and on editor/document close or
+  // change, so neither can ever linger as a ghost.
+  const overrideJump = new OverrideJumpController(decorationManager);
   disposables.push(
     vscode.commands.registerCommand(COMMAND_IDS.jumpAndHighlight, (payload) =>
       overrideJump.handle(payload)
     ),
-    vscode.window.onDidChangeActiveTextEditor(() => overrideJump.cancelFlash()),
-    vscode.workspace.onDidChangeTextDocument(() => overrideJump.cancelFlash()),
-    vscode.workspace.onDidCloseTextDocument(() => overrideJump.cancelFlash()),
+    vscode.window.onDidChangeActiveTextEditor(() => overrideJump.cancelTransientEffects()),
+    vscode.workspace.onDidChangeTextDocument(() => overrideJump.cancelTransientEffects()),
+    vscode.workspace.onDidCloseTextDocument(() => overrideJump.cancelTransientEffects()),
     { dispose: () => overrideJump.dispose() }
   );
 

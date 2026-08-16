@@ -88,6 +88,66 @@ export function jumpTargetFromLocation(loc: CssLocation, propertyName: string): 
 }
 
 /**
+ * Minimal vscode-free shape of an editor selection (0-based positions,
+ * start/end only — enough for identity comparison).
+ */
+export interface SelectionShape {
+  startLine: number;
+  startCharacter: number;
+  endLine: number;
+  endCharacter: number;
+}
+
+function sameSelection(a: SelectionShape, b: SelectionShape): boolean {
+  return (
+    a.startLine === b.startLine &&
+    a.startCharacter === b.startCharacter &&
+    a.endLine === b.endLine &&
+    a.endCharacter === b.endCharacter
+  );
+}
+
+/**
+ * Dismissal gate for the transient override-winner gutter badge.
+ *
+ * The jump command places the cursor programmatically
+ * (`editor.selection = …`), which itself fires
+ * `onDidChangeTextEditorSelection` — the very event that must dismiss the
+ * badge. The gate is constructed with the shape of that programmatic
+ * placement and consumes selection events:
+ *
+ *   - the FIRST event exactly matching the placement is the jump's own
+ *     effect → keep the badge, consume the placement token;
+ *   - every other event (a different first event, or any later event) is
+ *     a real user interaction (click, caret move, typing) → dismiss.
+ *
+ * If the placement event never arrives (VS Code did not emit one), the
+ * first real interaction simply fails the match and dismisses — the
+ * badge can never outlive its first genuine selection change.
+ */
+export class TransientBadgeDismissalGate {
+  private placement: SelectionShape | null;
+
+  constructor(placement: SelectionShape) {
+    this.placement = placement;
+  }
+
+  /**
+   * Feed one `onDidChangeTextEditorSelection` event (the selections as
+   * shapes). Returns `true` when the badge must be dismissed.
+   */
+  consume(selections: SelectionShape[]): boolean {
+    if (this.placement) {
+      const isPlacement =
+        selections.length === 1 && sameSelection(selections[0], this.placement);
+      this.placement = null;
+      return !isPlacement;
+    }
+    return true;
+  }
+}
+
+/**
  * Parse and validate the value the command receives. Command links hand
  * the handler the JSON-parsed ARRAY from the link arguments
  * (`[{ line, character, length, propertyName }]` — a single-element

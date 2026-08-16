@@ -19,11 +19,14 @@ out/**
 node_modules/**
 scripts/**
 
-# Repo-only dev material: vendored Chromium rule-source reference and
-# verification icons (the shipped decoration icons are inlined in the bundle;
-# nothing resolves these paths at runtime).
+# Repo-only dev material: vendored Chromium rule-source reference and the
+# legacy unused verification icon. The RENDERED decoration icons
+# (assets/inline/warning-icon.svg for the inactive-property warning and
+# assets/gutter/override-winner-{light,dark}.svg for the →| override badge)
+# are resolved from extensionPath AT RUNTIME by DecorationManager — they
+# MUST ship inside the VSIX or VS Code silently renders no icon.
 reference/**
-assets/**
+assets/gutter/yellow-triangle.svg
 
 # Build artifacts that never ship
 **/*.map
