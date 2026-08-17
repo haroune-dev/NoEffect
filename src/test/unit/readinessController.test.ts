@@ -299,9 +299,9 @@ test('T9 [F2]: blocked → ready transition fires the retry hook that re-analyze
     log: () => {},
   };
 
-  // The controller may report a snapshot twice (apply + the awaited race);
-  // the transition counter dedupes identical consecutive states, exactly like
-  // the debounced re-analysis trigger does in the activation layer.
+  // The controller reports each refresh state EXACTLY once — the transition
+  // counter dedupes identical consecutive states, exactly like the debounced
+  // re-analysis trigger does in the activation layer.
   let transitions = 0;
   let previousReason: string | null = null;
   const controller = new ReadinessController(source, host, statusBar, () => ({ enabled: true }), (snapshot) => {
@@ -340,6 +340,45 @@ test('dispose stops applying later results', async () => {
   settle(harness, state('ready'));
   await tick();
   assert.equal(harness.statusBarHost.text, '');
+});
+
+test('onSnapshot fires EXACTLY once per refresh (P2-BUG-10)', async () => {
+  const snapshots: (ReadinessState | null)[] = [];
+  const contexts = new Map<string, boolean>();
+  const statusBarHost: StatusBarHost = {
+    text: '',
+    tooltip: '',
+    command: '',
+    show() {},
+    hide() {},
+    dispose() {},
+  };
+  const statusBar = new StatusBarController(statusBarHost);
+  const host: ReadinessHost = {
+    setContext: (key, value) => {
+      contexts.set(key, value);
+    },
+    log: () => {},
+  };
+  const controller = new ReadinessController(
+    {
+      evaluate: async () => state('ready'),
+      refresh: async () => state('ready'),
+    },
+    host,
+    statusBar,
+    () => ({ enabled: true }),
+    (snapshot) => snapshots.push(snapshot)
+  );
+
+  await controller.refreshNow();
+  await tick();
+  await controller.refreshNow();
+  await tick();
+
+  assert.equal(snapshots.length, 2, 'one delivery per refresh — never a duplicate');
+  assert.deepEqual(snapshots, [state('ready'), state('ready')]);
+  controller.dispose();
 });
 
 test('the initial snapshot wait is bounded by the timeout option', async () => {

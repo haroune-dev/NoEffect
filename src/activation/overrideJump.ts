@@ -66,7 +66,13 @@ export class OverrideJumpController {
       logger.warn('[OverrideJump] Ignored malformed jump payload');
       return;
     }
-    void this.jumpToDeclaration(target);
+    void this.jumpToDeclaration(target).catch((err: unknown) => {
+      // showTextDocument (or the editor work after it) can reject — a
+      // closed editor, a failed reveal. A navigation failure must never
+      // surface as an unhandled rejection (P3-LOG-24).
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn(`[OverrideJump] Jump failed: ${message}`);
+    });
   }
 
   /**

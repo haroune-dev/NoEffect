@@ -248,7 +248,7 @@ test('messenger actions are passed through for the matching decision', async () 
   assert.deepEqual(messenger.calls[0].actionTitles, ['Analyze CSS']);
 });
 
-test('a messenger failure stays quiet and never marks completion', async () => {
+test('a messenger failure stays quiet, latches for the session, and never marks completion (P3-LOG-25)', async () => {
   const store = makeStore();
   const messenger: FirstRunMessenger = {
     async show() {
@@ -258,9 +258,16 @@ test('a messenger failure stays quiet and never marks completion', async () => {
   const coordinator = new FirstRunCoordinator(store, messenger);
 
   await coordinator.runOnce(true, state('ready'));
-
   assert.equal(store.marks, 0);
   assert.equal(store.completed, false);
+
+  // The failure must latch for this activation: a broken messenger must
+  // not re-attempt (and re-fail) on every subsequent snapshot — the
+  // notification is never re-shown, never nagged.
+  await coordinator.runOnce(true, state('ready'));
+  await coordinator.runOnce(true, state('ready'));
+  assert.equal(store.marks, 0, 'no persistence write happened behind a failed show');
+  assert.equal(store.completed, false, 'the global completion flag stays untouched');
 });
 
 test('a persistence failure never crashes the run', async () => {

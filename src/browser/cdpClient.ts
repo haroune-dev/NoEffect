@@ -24,7 +24,22 @@ export class CdpClient {
       });
 
       socket.on('message', (data) => {
-        const message = JSON.parse(data.toString());
+        // A single malformed frame must never crash the handler (P2-BUG-11):
+        // it is logged and ignored — CDP is line-oriented JSON, so the next
+        // well-formed frame continues the protocol stream.
+        let message: {
+          id?: number;
+          method?: string;
+          result?: unknown;
+          error?: unknown;
+          params?: unknown;
+        };
+        try {
+          message = JSON.parse(data.toString());
+        } catch {
+          logger.warn('[CDP] Ignoring malformed WebSocket frame');
+          return;
+        }
         
         if (message.id !== undefined) {
           const req = this.pendingRequests.get(message.id);
@@ -47,8 +62,20 @@ export class CdpClient {
       });
 
       socket.on('error', (err) => {
+        // Only the current socket may mutate session state (same stale-socket
+        // guard as the close handler).
+        if (this.ws !== socket) {
+          return;
+        }
         logger.error(`[CDP] WebSocket error: ${err.message}`);
-        if (!this.connected) reject(err);
+        const wasConnected = this.connected;
+        this.connected = false;
+        // A transport that errors without closing must never leave callers
+        // hanging: every in-flight request fails immediately (P2-BUG-11),
+        // so the LifecycleManager can detect the loss and recover.
+        this.pendingRequests.forEach((req) => req.reject(err));
+        this.pendingRequests.clear();
+        if (!wasConnected) reject(err);
       });
 
       socket.on('close', (code: number, reason: Buffer) => {

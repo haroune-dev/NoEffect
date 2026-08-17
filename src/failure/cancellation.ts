@@ -46,10 +46,20 @@ export function raceCancellation<T>(
     return Promise.reject(new AnalysisCancelledError('Analysis cancelled'));
   }
   return new Promise<T>((resolve, reject) => {
-    const subscription = token.onCancellationRequested(() => {
+    let subscription: { dispose(): void };
+    const rejectCancelled = (): void => {
       subscription.dispose();
       reject(new AnalysisCancelledError('Analysis cancelled'));
-    });
+    };
+    subscription = token.onCancellationRequested(rejectCancelled);
+    // TOCTOU close (P3-LOG-23): a cancellation between the check above and
+    // this registration fires the listener; a cancellation that already
+    // happened on a token implementation that does NOT replay past
+    // cancellations to new listeners is caught by this re-check — a
+    // cancelled run must reject, never sit on the underlying promise.
+    if (token.isCancellationRequested) {
+      rejectCancelled();
+    }
     promise.then(
       (value) => {
         subscription.dispose();

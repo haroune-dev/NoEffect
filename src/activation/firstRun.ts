@@ -185,8 +185,12 @@ export class FirstRunCoordinator {
     try {
       await this.messenger.show(FIRST_RUN_MESSAGES[decision], this.actions[decision]);
     } catch {
-      // Messaging failed: stay quiet, do not retry this activation.
+      // Messaging failed: stay quiet, do not retry this activation. The
+      // session guard must latch even on failure (P3-LOG-25) — otherwise a
+      // broken messenger re-shows on every subsequent snapshot, nagging the
+      // user with a notification they can never act on.
       this.showing = false;
+      this.completed = true;
       return;
     }
     this.showing = false;

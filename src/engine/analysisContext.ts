@@ -114,17 +114,26 @@ export function companionContextFingerprintFor(cssPath: string): string {
     hashByPath.set(resolution.htmlPath, entry.companionHashes[index] ?? null);
   });
 
-  const selected = selectCompanionsForAnalysis(
-    ranked,
-    selectors,
-    companionSettings.maxCompanions,
-    COMPANION_EXPANSION_BUDGET,
-    (companion) => cachedPageContainsAnySelector(companion.htmlPath, selectors, cssHash)
-  );
+  // The selection probes read the companion documents; a vanished or
+  // unreadable companion must never throw out of this function — it is
+  // called synchronously from editor event handlers (editor switches,
+  // save-completion re-evaluations). Any failure degrades to the stale
+  // sentinel, which the callers treat as "re-resolve, never skip".
+  try {
+    const selected = selectCompanionsForAnalysis(
+      ranked,
+      selectors,
+      companionSettings.maxCompanions,
+      COMPANION_EXPANSION_BUDGET,
+      (companion) => cachedPageContainsAnySelector(companion.htmlPath, selectors, cssHash)
+    );
 
-  return analysisContextFingerprint({
-    resolutions: selected,
-    companionHashes: selected.map((companion) => hashByPath.get(companion.htmlPath) ?? ''),
-    maxCompanions: companionSettings.maxCompanions,
-  });
+    return analysisContextFingerprint({
+      resolutions: selected,
+      companionHashes: selected.map((companion) => hashByPath.get(companion.htmlPath) ?? ''),
+      maxCompanions: companionSettings.maxCompanions,
+    });
+  } catch {
+    return STALE_CONTEXT_FINGERPRINT;
+  }
 }

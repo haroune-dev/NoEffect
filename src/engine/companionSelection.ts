@@ -70,7 +70,16 @@ export function cachedPageContainsAnySelector(
 ): boolean {
   const key = path.resolve(htmlPath);
   const cached = scanCache.get(key);
-  const pageHash = fileHashCache.getOrRead(key).hash;
+  let pageHash: string | null = null;
+  try {
+    pageHash = fileHashCache.getOrRead(key).hash;
+  } catch {
+    // An unreadable/deleted companion (ENOENT, EACCES, ...) must never
+    // crash the analysis or an editor event handler: conservative abstain
+    // — the document contributes no evidence, and nothing is cached so a
+    // later probe re-reads when the file is readable again.
+    return false;
+  }
   if (cached && cached.pageHash === pageHash && cached.cssHash === cssHash) {
     return cached.contains;
   }

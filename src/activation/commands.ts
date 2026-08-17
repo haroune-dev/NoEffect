@@ -142,11 +142,9 @@ function applyCssGlobalDecorations(
         );
         continue;
       }
+      // When fresh is undefined, do not clear the visible editor's existing decorations;
+      // let it retain them until a fresh analysis run completes and updates the view.
     }
-    // No fresh global outcome exists for the current world: a stale
-    // outcome must not linger — the next analysis owns this surface.
-    decorationManager.clearDecorationsForEditor(visible);
-    logger.info(`[Result] cssGlobal ${cssPath}: cleared (no fresh outcome for the current world)`);
   }
 }
 
@@ -273,6 +271,16 @@ export function registerCommands(
       const filePath = editor.document.uri.fsPath;
       logger.info(`Manual analysis triggered for: ${filePath}`);
 
+      // Freeze the judged content at trigger time: the run below takes
+      // seconds, during which the user may edit the document or switch
+      // editors. Every post-await use re-validates against THIS snapshot —
+      // a result must never be recorded or applied under a fingerprint of
+      // content the run never analyzed, and decorations must never be
+      // applied to an editor showing a different file.
+      const document = editor.document;
+      const startVersion = document.version;
+      const analyzedText = document.getText();
+
       if (activeRun) {
         activeRun.cancel();
         await activeRun.settled;
@@ -293,7 +301,7 @@ export function registerCommands(
         workspaceUntrusted: !vscode.workspace.isTrusted,
         workspaceUnsupported: workspaceIsUnsupported(),
         scheme: editor.document.uri.scheme,
-        sizeBytes: editor.document.getText().length,
+        sizeBytes: analyzedText.length,
         chromiumPath: settings.chromiumPath,
         ignoredPatterns: settings.ignoredFiles,
         maxFileSizeBytes: settings.maxFileSizeKb * 1024,
@@ -323,6 +331,27 @@ export function registerCommands(
         return; // The superseding run owns the next decoration update.
       }
 
+      // P2-BUG-02 (stale editor/document guard): the run judged the
+      // content frozen at trigger time. If the user switched editors or
+      // edited the document while the run was in flight, the outcome is
+      // already obsolete — record nothing and apply nothing; the next
+      // trigger (or the save/type events) genuinely re-analyzes the
+      // current content. Without this guard, the recorded fingerprint
+      // could match content that was never analyzed and keep dimming
+      // outdated text.
+      const currentEditor = vscode.window.activeTextEditor;
+      if (
+        !currentEditor ||
+        currentEditor.document.uri.fsPath !== filePath ||
+        currentEditor.document.version !== startVersion
+      ) {
+        logger.info(
+          `[Result] Superseded run dropped for ${filePath}: ` +
+            'editor switched or document edited while the analysis was in flight'
+        );
+        return;
+      }
+
       // Phase 5: a result produced against a session that was rebuilt while
       // the run was in flight (crash + recovery bumped the epoch) carries a
       // stale epoch — drop it before it can touch any UI surface.
@@ -337,7 +366,7 @@ export function registerCommands(
       reportOutcome?.(outcome, {});
       lastOutcome = outcome;
 
-      const analyzedHash = contentHash(editor.document.getText());
+      const analyzedHash = contentHash(analyzedText);
       const succeeded = outcome.status === 'success' || outcome.status === 'partial';
       const isCss = filePath.toLowerCase().endsWith('.css');
       // INCOMPLETE-EVIDENCE GUARD: a CSS run whose companion coverage is
@@ -431,14 +460,14 @@ export function registerCommands(
           `[Result] ${filePath}: ${issues.length} dimmed — ` +
             (issues.map((i) => i.selectorText).join(', ') || '(none)')
         );
-        applyDecorationsToOwners(decorationManager, editor, issues);
+        applyDecorationsToOwners(decorationManager, currentEditor, issues);
         // F4: linked-stylesheet decorations come from the cssGlobal
         // namespace only (an HTML run ensured/reused the fresh global
         // outcomes inside the analyzer; a CSS run recorded its own).
         applyCssGlobalDecorations(decorationManager, sessionManager);
       } else {
         // A failed/skipped analysis must not leave stale decorations behind.
-        decorationManager.clearDecorationsForEditor(editor);
+        decorationManager.clearDecorationsForEditor(currentEditor);
       }
     })
   );

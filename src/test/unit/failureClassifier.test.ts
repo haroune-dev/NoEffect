@@ -183,6 +183,21 @@ test('classification is deterministic: the same input twice gives identical fail
   assert.deepEqual(second, first);
 });
 
+test('null/undefined and primitive thrown values classify instead of crashing (P2-BUG-03)', () => {
+  // `throw undefined`, `Promise.reject()`, `throw null` — the catch-all
+  // boundary must never let a TypeError escape classification.
+  for (const cause of [null, undefined]) {
+    const failure = classifyFailure(cause as unknown);
+    assert.equal(failure.kind, 'unknown', `kind for ${String(cause)}`);
+    assert.equal(failure.code, FAILURE_CODES.UNKNOWN_FAILURE, `code for ${String(cause)}`);
+    assert.ok(failure.message.length > 0, `a usable message for ${String(cause)}`);
+  }
+
+  const primitive = classifyFailure('string error');
+  assert.equal(primitive.kind, 'unknown');
+  assert.equal(primitive.message, 'string error');
+});
+
 test('input limitation factories emit their explicit codes', () => {
   assert.equal(workspaceUntrustedFailure().code, FAILURE_CODES.WORKSPACE_UNTRUSTED);
   assert.equal(fileUnsavedFailure('/a.css').code, FAILURE_CODES.FILE_UNSAVED);

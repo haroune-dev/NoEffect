@@ -125,3 +125,32 @@ test('F6: cachedPageContainsAnySelector is gated by the page AND the stylesheet 
   assert.equal(cachedPageContainsAnySelector(html, ['.extra'], hashA), true, 'a page edit invalidates the cache');
   assert.equal(cachedPageContainsAnySelector(html, ['.hero'], hashA), true, 'the re-scan covers the new content');
 });
+
+test('F6: a deleted companion document never throws — the probe conservatively abstains (P1-BUG-01)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'noeffect-scan-'));
+  const html = path.join(dir, 'deleted.html');
+  fs.writeFileSync(html, '<div class="hero"></div>');
+  fileHashCache.reset();
+  resetSelectionScans();
+  const hash = contentHash('h1 { color: red }');
+
+  assert.equal(cachedPageContainsAnySelector(html, ['.hero'], hash), true, 'cold scan succeeds');
+
+  // The companion vanishes between resolution and selection — the exact
+  // race the analysis and the editor-switch refresh paths hit.
+  fs.unlinkSync(html);
+  assert.equal(
+    cachedPageContainsAnySelector(html, ['.hero'], hash),
+    false,
+    'an unreadable companion contributes no evidence, never an exception'
+  );
+
+  // The failure must not poison the scan cache: a restored file is probed
+  // again and scanned for real.
+  fs.writeFileSync(html, '<div class="restored"></div>');
+  assert.equal(
+    cachedPageContainsAnySelector(html, ['.restored'], hash),
+    true,
+    'a later probe re-reads the restored document'
+  );
+});

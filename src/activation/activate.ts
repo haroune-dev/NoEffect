@@ -122,9 +122,14 @@ function createReadinessUi(
     },
     markCompleted: () => {
       try {
-        void context.globalState.update(FIRST_RUN_STATE_KEY, true);
+        // Thenable (not Promise) — normalize before attaching the quiet
+        // catch (P3-LOG-25): a failed write must never crash or re-notify;
+        // the session guard still prevents any re-show this activation.
+        void Promise.resolve(context.globalState.update(FIRST_RUN_STATE_KEY, true)).catch(() => {
+          // Quiet failure — nothing to surface.
+        });
       } catch {
-        // Quiet: a failed write must never crash or re-notify.
+        // Synchronous rejection path — same quiet policy.
       }
     },
   };
@@ -509,11 +514,10 @@ export function activateExtension(context: vscode.ExtensionContext): vscode.Disp
           : undefined;
       if (fresh !== undefined) {
         decorationManager.applyDecorations(editor, fresh, true);
-      } else {
-        // No fresh global outcome for the current world: a stale outcome
-        // must not linger even for a fraction of a second.
-        decorationManager.clearDecorationsForEditor(editor);
       }
+      // When fresh is undefined (e.g. right after a save or edit while analysis is pending),
+      // retain existing decorations so the dimmed state remains continuous and does not flicker.
+      // Once the analysis completes, applyDecorations updates or removes decorations seamlessly.
     } else {
       // Instant feedback: re-apply only this file's own latest issues (a
       // per-file result, so switching between analyzed files never clears one

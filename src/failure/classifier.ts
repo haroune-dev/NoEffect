@@ -190,10 +190,17 @@ export function classifyFailure(
     return failureFromError(cause);
   }
 
-  const errno = cause as ErrnoLike;
+  // ── Explicit signal probes. `cause` may be any thrown value (null,
+  //     undefined, primitives) — the classifier's contract is to classify
+  //     ANY thrown value, so the probes are null-guarded before any
+  //     property access (P2-BUG-03).
+  const errno =
+    cause !== null && (typeof cause === 'object' || typeof cause === 'function')
+      ? (cause as ErrnoLike)
+      : null;
 
   // ── Explicit WebSocket close codes (our CDP client attaches them). ──
-  if (typeof errno.wsCloseCode === 'number') {
+  if (errno && typeof errno.wsCloseCode === 'number') {
     return failure({
       kind: 'cdp_connection_failed',
       code: FAILURE_CODES.CDP_DISCONNECTED,
@@ -205,7 +212,8 @@ export function classifyFailure(
   }
 
   // ── Explicit Node system errno codes. ──
-  switch (errno.code) {
+  if (errno) {
+    switch (errno.code) {
     case 'ENOENT':
       if (source === 'browser') {
         if (context.chromiumPath) {
@@ -296,10 +304,11 @@ export function classifyFailure(
         cause,
         context: context.context,
       });
+    }
   }
 
   // ── Authored sentinel messages thrown by our own modules. ──
-  const message = errno.message ?? messageOf(cause);
+  const message = errno?.message ?? messageOf(cause);
   if (/WebSocket closed while a request was in flight/i.test(message) ||
       /CDP Client is not connected/i.test(message) ||
       /Disconnected/i.test(message)) {

@@ -165,12 +165,11 @@ export class ReadinessController {
           ])
         : promise.then((s) => s as ReadinessState | null, () => null);
 
-    return snapshot.then((state) => {
-      if (this.isCurrent(gen)) {
-        this.onSnapshot(state);
-      }
-      return state;
-    });
+    // The returned chain only resolves the value — `onSnapshot` fires
+    // EXACTLY once, inside `apply` (single-delivery contract, P2-BUG-10).
+    // With a bounded timeout the promise may resolve early (null) while the
+    // eventual result still applies via `apply` afterwards.
+    return snapshot.then((state) => state);
   }
 
   private apply(state: ReadinessState | null): void {
