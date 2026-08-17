@@ -214,6 +214,22 @@ test('temp profile: a stale dir is listed and swept (best effort)', async () => 
   assert.ok(!fs.existsSync(dir));
 });
 
+test('temp profile: removal refuses paths outside the noeffect-* temp namespace', async () => {
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'other-'));
+  try {
+    assert.equal(await removeTempDir(outside), false, 'an off-namespace dir is refused');
+    assert.ok(fs.existsSync(outside), 'the refused dir is left untouched');
+
+    assert.equal(
+      await removeTempDir(path.join(os.tmpdir(), 'noeffect-missing')),
+      true,
+      'a missing noeffect-* name is a successful no-op'
+    );
+  } finally {
+    fs.rmSync(outside, { recursive: true, force: true });
+  }
+});
+
 // ── redaction.ts ──────────────────────────────────────────────────────────
 
 test('redaction scrubs assignment values, tokens and home paths', () => {

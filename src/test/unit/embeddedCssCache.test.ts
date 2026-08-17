@@ -183,3 +183,56 @@ test('inline mapping key is deterministic and includes the content hash', () => 
     'different attributes stay distinct'
   );
 });
+
+test('embedded parse store is bounded: the oldest content-version entry evicts at the cap', () => {
+  htmlFragmentCache.reset();
+  embeddedParseCache.reset();
+  const filePath = writeFixture('cap', HTML_WITH_EMBEDDED);
+  const { fragments } = htmlFragmentCache.getOrParse(filePath);
+
+  // One document, 257 distinct content versions — one entry per version.
+  for (let i = 0; i < 257; i++) {
+    embeddedParseCache.getOrParse(filePath, `cap-hash-${i}`, fragments);
+  }
+  const before = embeddedParseCache.stats();
+  embeddedParseCache.getOrParse(filePath, 'cap-hash-0', fragments);
+  assert.equal(
+    embeddedParseCache.stats().misses,
+    before.misses + 1,
+    'the oldest content-version entry was evicted — no cached parse to reuse'
+  );
+});
+
+test('embedded mapping store is bounded: the oldest key evicts at the cap', () => {
+  embeddedMappingCache.reset();
+  for (let i = 0; i < 513; i++) {
+    embeddedMappingCache.set(inlineMappingKey('/x/i.html', `h${i}`, 0, 'color', 'red'), null);
+  }
+  assert.equal(
+    embeddedMappingCache.get(inlineMappingKey('/x/i.html', 'h0', 0, 'color', 'red')),
+    undefined,
+    'the oldest key was evicted'
+  );
+  assert.equal(
+    embeddedMappingCache.get(inlineMappingKey('/x/i.html', 'h512', 0, 'color', 'red')),
+    null,
+    'the most recent key survives'
+  );
+});
+
+test('embedded mapping store evicts least-recently-USED keys (a hit refreshes recency)', () => {
+  embeddedMappingCache.reset();
+  for (let i = 0; i < 512; i++) {
+    embeddedMappingCache.set(inlineMappingKey('/x/i.html', `h${i}`, 0, 'color', 'red'), null);
+  }
+  const oldestKey = inlineMappingKey('/x/i.html', 'h0', 0, 'color', 'red');
+  assert.equal(embeddedMappingCache.get(oldestKey), null, 'refreshing the oldest key hits');
+
+  embeddedMappingCache.set(inlineMappingKey('/x/i.html', 'h512', 0, 'color', 'red'), null);
+  assert.equal(embeddedMappingCache.get(oldestKey), null, 'the refreshed key survived the eviction');
+  assert.equal(
+    embeddedMappingCache.get(inlineMappingKey('/x/i.html', 'h1', 0, 'color', 'red')),
+    undefined,
+    'the least-recently-used key was evicted'
+  );
+});

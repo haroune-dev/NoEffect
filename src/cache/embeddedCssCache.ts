@@ -108,25 +108,66 @@ export interface HtmlFragmentCacheEntry {
 
 /** 1 — HTML parse cache: content-addressed fragment scan. */
 class HtmlFragmentCache {
-  private readonly entries = new Map<string, { hash: string; fragments: HtmlCssFragments; content: string }>();
+  private readonly entries = new Map<
+    string,
+    { hash: string; fragments: HtmlCssFragments; content: string; size: number; mtimeMs: number }
+  >();
   private hits: number = 0;
   private misses: number = 0;
 
+  /** Entry cap — a path-keyed cache, so bounded by the open-file set plus
+   *  lazily dropped vanished files (P2-MEM-07). */
+  private static readonly LIMIT = 256;
+
   getOrParse(filePath: string): HtmlFragmentCacheEntry {
+    const cached = this.entries.get(filePath);
+    if (cached) {
+      let stat: fs.Stats | null = null;
+      try {
+        stat = fs.statSync(filePath);
+      } catch {
+        this.entries.delete(filePath);
+      }
+      // Cheap freshness gate: an unchanged size+mtime means the cached
+      // fragment scan is still the truth — no read, no hash (P2-PERF-09).
+      if (stat && stat.size === cached.size && stat.mtimeMs === cached.mtimeMs) {
+        this.hits++;
+        logger.debug(`[HTML Cache] Hit: ${filePath}`);
+        return { fragments: cached.fragments, hash: cached.hash, hit: true, content: cached.content };
+      }
+    }
+
     const content = fs.readFileSync(filePath, 'utf-8');
     const contentHash = hash(content);
 
-    const cached = this.entries.get(filePath);
     if (cached && cached.hash === contentHash) {
+      // Identical bytes rewritten: not a content change — reuse the cached
+      // scan, refresh the on-disk identity.
       this.hits++;
-      logger.info(`[HTML Cache] Hit: ${filePath}`);
+      logger.debug(`[HTML Cache] Hit: ${filePath}`);
+      const stat = statOf(filePath);
+      this.entries.set(filePath, {
+        hash: contentHash,
+        fragments: cached.fragments,
+        content,
+        size: stat?.size ?? -1,
+        mtimeMs: stat?.mtimeMs ?? -1,
+      });
       return { fragments: cached.fragments, hash: contentHash, hit: true, content };
     }
 
     this.misses++;
-    logger.info(`[HTML Cache] Miss: ${filePath}`);
+    logger.debug(`[HTML Cache] Miss: ${filePath}`);
     const fragments = scanHtmlForCss(content);
-    this.entries.set(filePath, { hash: contentHash, fragments, content });
+    evictOldest(this.entries, HtmlFragmentCache.LIMIT);
+    const stat = statOf(filePath);
+    this.entries.set(filePath, {
+      hash: contentHash,
+      fragments,
+      content,
+      size: stat?.size ?? -1,
+      mtimeMs: stat?.mtimeMs ?? -1,
+    });
     return { fragments, hash: contentHash, hit: false, content };
   }
 
@@ -148,6 +189,13 @@ class EmbeddedParseCache {
   private misses: number = 0;
 
   /**
+   * Entry cap — every content version of every HTML document owns its own
+   * (path|htmlHash) entry, so long sessions with many saves would grow
+   * unboundedly without oldest-first eviction (P2-MEM-07).
+   */
+  private static readonly LIMIT = 256;
+
+  /**
    * Parse (and document-shift) the fragments of one HTML document.
    * `fragments` must be the cache entry of `htmlPath` under `htmlHash`;
    * the key covers both, so any content change rebuilds the entry.
@@ -157,12 +205,12 @@ class EmbeddedParseCache {
     const cached = this.entries.get(key);
     if (cached) {
       this.hits++;
-      logger.info(`[Embedded Parse Cache] Hit: ${htmlPath}`);
+      logger.debug(`[Embedded Parse Cache] Hit: ${htmlPath}`);
       return cached.parse;
     }
 
     this.misses++;
-    logger.info(`[Embedded Parse Cache] Miss: ${htmlPath}`);
+    logger.debug(`[Embedded Parse Cache] Miss: ${htmlPath}`);
 
     const parser = new CssAstParser();
     const blocks: ParsedStyleBlock[] = fragments.styleBlocks.map((block) => ({
@@ -178,6 +226,7 @@ class EmbeddedParseCache {
     }));
 
     const parse = { blocks, attributes };
+    evictOldest(this.entries, EmbeddedParseCache.LIMIT);
     this.entries.set(key, { hash: htmlHash, parse });
     return parse;
   }
@@ -199,18 +248,32 @@ class EmbeddedMappingCache {
   private hits: number = 0;
   private misses: number = 0;
 
+  /**
+   * Entry cap — the key includes the HTML content hash, so every content
+   * version of every inline declaration owns its own entry; without
+   * oldest-first eviction a long save-history would grow unboundedly
+   * (P2-MEM-07).
+   */
+  private static readonly LIMIT = 512;
+
   /** Look up a cached inline match; `undefined` means the key is unknown. */
   get(key: string): LocalDeclarationMatch | null | undefined {
     if (!this.entries.has(key)) {
       return undefined;
     }
     this.hits++;
-    return this.entries.get(key) ?? null;
+    // Refresh recency: a hit re-inserts the entry at the back of the
+    // insertion order, so the LRU cap evicts least-recently-USED entries.
+    const match = this.entries.get(key) ?? null;
+    this.entries.delete(key);
+    this.entries.set(key, match);
+    return match;
   }
 
   /** Store an inline match (or its absence) under `key`. */
   set(key: string, match: LocalDeclarationMatch | null): void {
     this.misses++;
+    evictOldest(this.entries, EmbeddedMappingCache.LIMIT);
     this.entries.set(key, match);
   }
 
@@ -253,3 +316,22 @@ export function inlineMappingKey(
 export const htmlFragmentCache = new HtmlFragmentCache();
 export const embeddedParseCache = new EmbeddedParseCache();
 export const embeddedMappingCache = new EmbeddedMappingCache();
+
+/** Evict the oldest-inserted entry when a cache reaches `limit` (LRU-style cap). */
+function evictOldest<K, V>(map: Map<K, V>, limit: number): void {
+  if (map.size >= limit) {
+    const oldest = map.keys().next().value;
+    if (oldest !== undefined) {
+      map.delete(oldest);
+    }
+  }
+}
+
+/** Cheap on-disk identity probe (null when the file cannot be stated). */
+function statOf(filePath: string): fs.Stats | null {
+  try {
+    return fs.statSync(filePath);
+  } catch {
+    return null;
+  }
+}

@@ -7,7 +7,8 @@
  *
  *  POSIX:  `process.kill(-pid, 'SIGTERM')` → wait 1250ms → `SIGKILL`,
  *          then poll `isProcessAlive(pid)` until it is gone (bounded).
- *  Windows: `taskkill /pid <pid> /T /F` (tree + force) via spawn.
+ *  Windows: `taskkill /pid <pid> /T /F` (tree + force) via spawn, then the
+ *          same bounded poll confirms the leader is dead (P3-PERF-40).
  *
  * The argument construction for both platforms is a pure function so it is
  * unit-testable without touching the OS; `killProcessTree` is the timed,
@@ -84,12 +85,11 @@ export function runTaskkill(pid: number): Promise<void> {
  */
 export async function killProcessTree(pid: number): Promise<boolean> {
   const plan = buildKillPlan(pid);
-  const cleanupTimeout = RETRY_POLICY.restart_cleanup.timeoutMs;
 
   if (plan.taskkill) {
     await runTaskkill(pid);
     await sleep(250);
-    return !isProcessAlive(pid);
+    return confirmDeath(pid); // bounded re-poll like the POSIX path (P3-PERF-40)
   }
 
   signalProcessGroup(pid, 'SIGTERM');
@@ -97,8 +97,15 @@ export async function killProcessTree(pid: number): Promise<boolean> {
   if (isProcessAlive(pid)) {
     signalProcessGroup(pid, 'SIGKILL');
   }
+  return confirmDeath(pid);
+}
 
-  const deadline = Date.now() + cleanupTimeout;
+/**
+ * Poll `isProcessAlive` until the pid is gone, bounded by the restart-cleanup
+ * timeout — a single post-kill check can never be the only confirmation.
+ */
+async function confirmDeath(pid: number): Promise<boolean> {
+  const deadline = Date.now() + RETRY_POLICY.restart_cleanup.timeoutMs;
   while (Date.now() < deadline) {
     if (!isProcessAlive(pid)) {
       return true;

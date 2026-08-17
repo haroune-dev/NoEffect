@@ -100,62 +100,62 @@ test('compareCompanions: distance 0 order reproduces the legacy policy exactly',
 
 // ── Resolution ─────────────────────────────────────────────────────────
 
-test('same-directory companion wins (legacy policy, distance 0)', () => {
+test('same-directory companion wins (legacy policy, distance 0)', async () => {
   layout();
   write('styles.css', 'body{}');
   write('index.html', page('styles.css'));
   write('a.html', page('styles.css'));
 
-  const resolved = resolveCompanion({ cssFilePath: path.join(root, 'styles.css') })!;
+  const resolved = (await resolveCompanion({ cssFilePath: path.join(root, 'styles.css') }))!;
   assert.equal(resolved.htmlPath, path.join(root, 'index.html'));
   assert.equal(resolved.distance, 0);
   assert.equal(resolved.serverRoot, root);
   assert.equal(resolved.kind, 'relative-down');
 });
 
-test('crossdir-down: companion in a parent directory via ../ href (LCA root)', () => {
+test('crossdir-down: companion in a parent directory via ../ href (LCA root)', async () => {
   layout();
   const css = write('styles/theme.css', 'body{}');
   write('index.html', page('../styles/theme.css'));
 
-  const resolved = resolveCompanion({ cssFilePath: css })!;
+  const resolved = (await resolveCompanion({ cssFilePath: css }))!;
   assert.equal(resolved.htmlPath, path.join(root, 'index.html'));
   assert.equal(resolved.kind, 'relative-up');
   assert.equal(resolved.serverRoot, root, 'server root is the LCA (workspace root here)');
 });
 
-test('crossdir-up: companion in a subdirectory linking back via ../', () => {
+test('crossdir-up: companion in a subdirectory linking back via ../', async () => {
   layout();
   const css = write('styles.css', 'body{}');
   write('pages/index.html', page('../styles.css'));
 
-  const resolved = resolveCompanion({ cssFilePath: css })!;
+  const resolved = (await resolveCompanion({ cssFilePath: css }))!;
   assert.equal(resolved.htmlPath, path.join(root, 'pages', 'index.html'));
   assert.equal(resolved.kind, 'relative-up');
 });
 
-test('root-relative href links resolve from the server root', () => {
+test('root-relative href links resolve from the server root', async () => {
   layout();
   const css = write('css/theme.css', 'body{}');
   write('pages/index.html', page('/css/theme.css'));
 
-  const resolved = resolveCompanion({ cssFilePath: css })!;
+  const resolved = (await resolveCompanion({ cssFilePath: css }))!;
   assert.equal(resolved.htmlPath, path.join(root, 'pages', 'index.html'));
   assert.equal(resolved.kind, 'root-relative');
 });
 
-test('base href: relative links resolve through <base href>', () => {
+test('base href: relative links resolve through <base href>', async () => {
   layout();
   const css = write('assets/theme.css', 'body{}');
   const html = '<base href="../assets/"><link rel="stylesheet" href="theme.css">';
   write('pages/index.html', html);
 
-  const resolved = resolveCompanion({ cssFilePath: css })!;
+  const resolved = (await resolveCompanion({ cssFilePath: css }))!;
   assert.equal(resolved.htmlPath, path.join(root, 'pages', 'index.html'));
   assert.equal(resolved.kind, 'base');
 });
 
-test('multi-document projects: distance, then index.html, then alphabetical', () => {
+test('multi-document projects: distance, then index.html, then alphabetical', async () => {
   layout();
   const css = write('styles/x.css', 'body{}');
   write('index.html', page('styles/x.css')); // distance 1
@@ -163,48 +163,48 @@ test('multi-document projects: distance, then index.html, then alphabetical', ()
   write('pages/z.html', page('../styles/x.css')); // distance 2
   write('pages/a.html', page('../styles/x.css')); // distance 2
 
-  const resolved = resolveCompanion({ cssFilePath: css })!;
+  const resolved = (await resolveCompanion({ cssFilePath: css }))!;
   assert.equal(resolved.htmlPath, path.join(root, 'index.html'), 'distance 1 beats distance 2');
 });
 
-test('multi-document projects: index.html beats alphabetical within equal distance', () => {
+test('multi-document projects: index.html beats alphabetical within equal distance', async () => {
   layout();
   const css = write('styles/x.css', 'body{}');
   write('pages/z.html', page('../styles/x.css'));
   write('pages/index.html', page('../styles/x.css'));
 
-  const resolved = resolveCompanion({ cssFilePath: css })!;
+  const resolved = (await resolveCompanion({ cssFilePath: css }))!;
   assert.equal(resolved.htmlPath, path.join(root, 'pages', 'index.html'));
 });
 
-test('ignored directories (node_modules) are pruned — negative control', () => {
+test('ignored directories (node_modules) are pruned — negative control', async () => {
   layout();
   const css = write('styles/x.css', 'body{}');
   write('node_modules/pkg/index.html', page('../styles/x.css'));
   write('dist/index.html', page('../styles/x.css'));
 
-  assert.equal(resolveCompanion({ cssFilePath: css }), null);
+  assert.equal(await resolveCompanion({ cssFilePath: css }), null);
 });
 
-test('user ignore globs prune candidate trees', () => {
+test('user ignore globs prune candidate trees', async () => {
   layout();
   const css = write('styles/x.css', 'body{}');
   write('templates/index.html', page('../styles/x.css'));
 
-  const resolved = resolveCompanion({ cssFilePath: css, ignoredPatterns: ['**/templates/**'] });
+  const resolved = await resolveCompanion({ cssFilePath: css, ignoredPatterns: ['**/templates/**'] });
   assert.equal(resolved, null);
 });
 
-test('depth bound: deep candidates are not scanned', () => {
+test('depth bound: deep candidates are not scanned', async () => {
   layout();
   const css = write('styles/x.css', 'body{}');
   write('a/b/c/d/e/index.html', page('../../../../../styles/x.css'));
 
-  assert.equal(resolveCompanion({ cssFilePath: css, maxDepth: 2 }), null);
-  assert.ok(resolveCompanion({ cssFilePath: css, maxDepth: 6 }), 'default depth finds it');
+  assert.equal(await resolveCompanion({ cssFilePath: css, maxDepth: 2 }), null);
+  assert.ok(await resolveCompanion({ cssFilePath: css, maxDepth: 6 }), 'default depth finds it');
 });
 
-test('candidate bound: the scan stops once the budget is exhausted', () => {
+test('candidate bound: the scan stops once the budget is exhausted', async () => {
   layout();
   const css = write('styles/x.css', 'body{}');
   for (let i = 0; i < 10; i++) {
@@ -212,45 +212,45 @@ test('candidate bound: the scan stops once the budget is exhausted', () => {
   }
 
   // Budget 1 = the root directory visit only: no candidate is ever read.
-  assert.equal(resolveCompanion({ cssFilePath: css, maxCandidates: 1 }), null);
+  assert.equal(await resolveCompanion({ cssFilePath: css, maxCandidates: 1 }), null);
   // Budget 3 = root visit + a0 + a1: a0 is the first linker read.
   assert.equal(
-    resolveCompanion({ cssFilePath: css, maxCandidates: 3 })?.htmlPath,
+    (await resolveCompanion({ cssFilePath: css, maxCandidates: 3 }))?.htmlPath,
     path.join(root, 'a0.html')
   );
-  assert.ok(resolveCompanion({ cssFilePath: css }), 'default budget finds a linker');
+  assert.ok(await resolveCompanion({ cssFilePath: css }), 'default budget finds a linker');
 });
 
-test('workspace-folder provider bounds the search to the folder', () => {
+test('workspace-folder provider bounds the search to the folder', async () => {
   layout();
   const css = write('styles/x.css', 'body{}');
   const linkerOutside = write('outside/index.html', page('../styles/x.css'));
 
   const provider = (fsPath: string): string | null =>
     fsPath.startsWith(path.join(root, 'styles')) ? path.join(root, 'styles') : null;
-  const resolved = resolveCompanion({
+  const resolved = await resolveCompanion({
     cssFilePath: css,
     workspaceFolderProvider: provider,
   });
   assert.equal(resolved, null, 'linker outside the provided folder is not seen');
 
-  const resolvedWithRoot = resolveCompanion({
+  const resolvedWithRoot = await resolveCompanion({
     cssFilePath: css,
     workspaceFolderProvider: () => root,
   });
   assert.equal(resolvedWithRoot?.htmlPath, linkerOutside);
 });
 
-test('non-linking candidates produce no companion (wrapper flow keeps warning)', () => {
+test('non-linking candidates produce no companion (wrapper flow keeps warning)', async () => {
   layout();
   const css = write('styles/x.css', 'body{}');
   write('pages/index.html', '<html><body></body></html>');
   write('pages/other.html', '<link rel="stylesheet" href="../unrelated.css">');
 
-  assert.equal(resolveCompanion({ cssFilePath: css }), null);
+  assert.equal(await resolveCompanion({ cssFilePath: css }), null);
 });
 
-test('undecodable hrefs are skipped without breaking the scan', () => {
+test('undecodable hrefs are skipped without breaking the scan', async () => {
   layout();
   const css = write('styles/x.css', 'body{}');
   write(
@@ -258,11 +258,11 @@ test('undecodable hrefs are skipped without breaking the scan', () => {
     '<link rel="stylesheet" href="%zz.css"><link rel="stylesheet" href="../styles/x.css">'
   );
 
-  const resolved = resolveCompanion({ cssFilePath: css })!;
+  const resolved = (await resolveCompanion({ cssFilePath: css }))!;
   assert.equal(resolved.htmlPath, path.join(root, 'index.html'));
 });
 
-test('external hrefs never match (https:, data:, protocol-relative)', () => {
+test('external hrefs never match (https:, data:, protocol-relative)', async () => {
   layout();
   const css = write('styles/x.css', 'body{}');
   write(
@@ -274,10 +274,10 @@ test('external hrefs never match (https:, data:, protocol-relative)', () => {
     ].join('\n')
   );
 
-  assert.equal(resolveCompanion({ cssFilePath: css }), null);
+  assert.equal(await resolveCompanion({ cssFilePath: css }), null);
 });
 
-test('same stylesheet linked twice in one document produces one match', () => {
+test('same stylesheet linked twice in one document produces one match', async () => {
   layout();
   const css = write('styles/x.css', 'body{}');
   write(
@@ -285,24 +285,24 @@ test('same stylesheet linked twice in one document produces one match', () => {
     '<link rel="stylesheet" href="../styles/x.css"><link rel="stylesheet" href="../styles/x.css">'
   );
 
-  const resolved = resolveCompanion({ cssFilePath: css })!;
+  const resolved = (await resolveCompanion({ cssFilePath: css }))!;
   assert.equal(resolved.htmlPath, path.join(root, 'index.html'));
 });
 
-test('resolution is deterministic across calls', () => {
+test('resolution is deterministic across calls', async () => {
   layout();
   const css = write('styles/x.css', 'body{}');
   write('index.html', page('styles/x.css'));
   write('pages/index.html', page('../styles/x.css'));
 
-  const first = resolveCompanion({ cssFilePath: css });
-  const second = resolveCompanion({ cssFilePath: css });
+  const first = await resolveCompanion({ cssFilePath: css });
+  const second = await resolveCompanion({ cssFilePath: css });
   assert.deepEqual(first, second);
 });
 
 // ── Deployment-style basename fallback ──────────────────────────────────
 
-test('deployment-style links: a base-relative URL that does not exist on disk pairs by basename', () => {
+test('deployment-style links: a base-relative URL that does not exist on disk pairs by basename', async () => {
   layout();
   const css = write('css/styles.css', 'body{}');
   const home = write(
@@ -310,12 +310,12 @@ test('deployment-style links: a base-relative URL that does not exist on disk pa
     '<base href="/"><link rel="stylesheet" href="/test/manual-multipage-stress/css/styles.css">'
   );
 
-  const resolved = resolveCompanion({ cssFilePath: css })!;
+  const resolved = (await resolveCompanion({ cssFilePath: css }))!;
   assert.equal(resolved.htmlPath, home, 'the page pairs with the analyzed stylesheet by basename');
   assert.equal(resolved.kind, 'root-relative');
 });
 
-test('deployment-style links: a mismatched basename never pairs', () => {
+test('deployment-style links: a mismatched basename never pairs', async () => {
   layout();
   const css = write('css/styles.css', 'body{}');
   write(
@@ -323,10 +323,10 @@ test('deployment-style links: a mismatched basename never pairs', () => {
     '<base href="/"><link rel="stylesheet" href="/assets/other.css">'
   );
 
-  assert.equal(resolveCompanion({ cssFilePath: css }), null);
+  assert.equal(await resolveCompanion({ cssFilePath: css }), null);
 });
 
-test('deployment-style links: a URL that resolves to an EXISTING file never falls back', () => {
+test('deployment-style links: a URL that resolves to an EXISTING file never falls back', async () => {
   layout();
   const css = write('css/styles.css', 'body{}');
   write('other/styles.css', 'body{}');
@@ -335,16 +335,16 @@ test('deployment-style links: a URL that resolves to an EXISTING file never fall
     '<base href="/"><link rel="stylesheet" href="/other/styles.css">'
   );
 
-  assert.equal(resolveCompanion({ cssFilePath: css }), null, 'exact URL resolution is authoritative');
+  assert.equal(await resolveCompanion({ cssFilePath: css }), null, 'exact URL resolution is authoritative');
 });
 
-test('broken relative links never pair by basename (the fallback is deployment-kind only)', () => {
+test('broken relative links never pair by basename (the fallback is deployment-kind only)', async () => {
   layout();
   const css = write('styles/x.css', 'body{}');
   write('pages/index.html', page('../x.css'));
 
   assert.equal(
-    resolveCompanion({ cssFilePath: css }),
+    await resolveCompanion({ cssFilePath: css }),
     null,
     'a relative ../ link that resolves to nothing is a broken project link, not a served URL space'
   );

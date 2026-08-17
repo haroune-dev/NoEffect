@@ -29,7 +29,7 @@ test('ADVANCED-PROBE: dump + assert verdicts for the advanced multipage fixture'
 
   const cssReal = path.normalize(path.resolve(cssFilePath));
   const primaryRoot = companionSettings.workspaceFolderProvider?.(cssFilePath) ?? path.dirname(cssReal);
-  companionCache.set(`${primaryRoot}|${cssReal}`, resolveCompanionsAll({ cssFilePath }));
+  companionCache.set(`${primaryRoot}|${cssReal}`, await resolveCompanionsAll({ cssFilePath }));
 
   const analyzer = new CdpAnalyzer();
   const issues = await analyzer.analyzeCssFile(cssFilePath, Date.now());

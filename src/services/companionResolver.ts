@@ -105,6 +105,16 @@ export const nodeCompanionFs: CompanionFs = {
   realpathSync: (filePath) => fs.realpathSync(filePath),
 };
 
+/**
+ * Cooperative yield to the event loop, so a bounded scan over a large
+ * workspace never stalls the extension-host thread for its whole duration
+ * (P2-PERF-12). Resolution order and budget accounting are untouched — the
+ * scan is only paused between directory batches, never reordered.
+ */
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
 /** Linked stylesheet hrefs of one document, in document order. */
 export interface LinkedHrefs {
   /** The optional `<base href="...">` of the document. */
@@ -203,8 +213,14 @@ function searchRootsFor(cssDir: string, provider: ((fsPath: string) => string | 
  * visited directory AND every candidate document counts), decremented in
  * place; the scan stops when it is exhausted, so even an ancestor root that
  * reaches the filesystem root stays strictly bounded and deterministic.
+ *
+ * Cooperative: the walk yields to the event loop between directory batches
+ * (every 16 processed directories with work remaining) so a big-workspace
+ * scan does not hold the extension-host thread for its whole duration
+ * (P2-PERF-12). Determinism is unaffected — the visit order, budget and
+ * results are identical, only the wall-clock completion is deferred.
  */
-function matchRoot(
+async function matchRoot(
   root: string,
   cssReal: string,
   cssDir: string,
@@ -212,7 +228,7 @@ function matchRoot(
   maxDepth: number,
   maxFileSizeBytes: number,
   budget: { remaining: number }
-): CompanionResolution[] {
+): Promise<CompanionResolution[]> {
   const matches: CompanionResolution[] = [];
   if (budget.remaining <= 0 || isIgnoredPath(root, patterns)) {
     return matches;
@@ -220,9 +236,11 @@ function matchRoot(
 
   // Phase A: deterministic BFS (sorted entries, depth + operation bounds).
   const queue: Array<{ dir: string; depth: number }> = [{ dir: root, depth: 0 }];
+  let processedDirs = 0;
   while (queue.length > 0 && budget.remaining > 0) {
     const { dir, depth } = queue.shift()!;
     budget.remaining--;
+    processedDirs++;
 
     let entries: fs.Dirent[];
     try {
@@ -322,6 +340,13 @@ function matchRoot(
     for (const sub of subdirs) {
       queue.push({ dir: sub, depth: depth + 1 });
     }
+
+    // Cooperative scanning: every 16 processed directories with work
+    // remaining, hand the event loop back so other extension work (UI,
+    // decorations, CDP traffic) is not starved for the whole scan.
+    if (queue.length > 0 && processedDirs % 16 === 0) {
+      await yieldToEventLoop();
+    }
   }
 
   return matches;
@@ -405,8 +430,12 @@ export function deduplicateByCanonicalPath(
  * distance ascending, `index.html` first within equal distance, then full
  * path lexicographic. Deduplication by canonical filesystem identity runs
  * BEFORE ranking.
+ *
+ * Cooperative: the underlying BFS yields to the event loop between
+ * directory batches (see `matchRoot`) — resolution on big workspaces must
+ * be awaited on the extension-host thread (P2-PERF-12).
  */
-export function resolveCompanionsAll(options: CompanionResolverOptions): CompanionResolution[] {
+export async function resolveCompanionsAll(options: CompanionResolverOptions): Promise<CompanionResolution[]> {
   const cssReal = cssRealPath(options.cssFilePath);
   const cssDir = path.dirname(cssReal);
 
@@ -430,7 +459,7 @@ export function resolveCompanionsAll(options: CompanionResolverOptions): Compani
     if (budget.remaining <= 0) {
       break;
     }
-    matches.push(...matchRoot(root, cssReal, cssDir, patterns, maxDepth, maxFileSizeBytes, budget));
+    matches.push(...(await matchRoot(root, cssReal, cssDir, patterns, maxDepth, maxFileSizeBytes, budget)));
   }
 
   return deduplicateByCanonicalPath(matches).sort(compareCompanions);
@@ -444,8 +473,8 @@ export function resolveCompanionsAll(options: CompanionResolverOptions): Compani
  * a correctness guarantee. Zero companions means the caller falls back to
  * the synthetic wrapper flow.
  */
-export function resolveCompanions(options: CompanionResolverOptions): CompanionResolution[] {
-  const all = resolveCompanionsAll(options);
+export async function resolveCompanions(options: CompanionResolverOptions): Promise<CompanionResolution[]> {
+  const all = await resolveCompanionsAll(options);
   const maxCompanions = options.maxCompanions ?? companionSettings.maxCompanions;
   return all.slice(0, maxCompanions);
 }
@@ -455,6 +484,6 @@ export function resolveCompanions(options: CompanionResolverOptions): CompanionR
  * when none links it. Backward-compatible: exactly the first element of
  * the ranked Top-K selection.
  */
-export function resolveCompanion(options: CompanionResolverOptions): CompanionResolution | null {
-  return resolveCompanions(options)[0] ?? null;
+export async function resolveCompanion(options: CompanionResolverOptions): Promise<CompanionResolution | null> {
+  return (await resolveCompanions(options))[0] ?? null;
 }

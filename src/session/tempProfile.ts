@@ -15,7 +15,7 @@ import * as path from 'path';
 export const TEMP_PREFIX = 'noeffect-';
 export const STALE_TEMP_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
-/** Retry schedule for `rmSync` temp-dir removal. */
+/** Retry schedule for temp-dir removal. */
 export const TEMP_RETRY_DELAYS_MS = [100, 250, 500] as const;
 
 /** Create a fresh temp dir with the standard prefix. */
@@ -26,12 +26,20 @@ export function createTempDir(prefix: string = TEMP_PREFIX): string {
 /**
  * Force-remove a temp dir with retry delays (Windows lock-persistence).
  * Resolves true on success; false after all retries (caller may log/sweep).
+ *
+ * Non-blocking: removal runs through `fs.promises.rm` so the extension-host
+ * thread is never stalled by a large recursive delete (P3-PERF-36). Paths
+ * outside the `noeffect-*` temp namespace are refused outright — this
+ * primitive must never be an unguarded rm-rf on an arbitrary path.
  */
 export async function removeTempDir(dir: string, maxAttempts: number = 3): Promise<boolean> {
+  if (!isContainedTempDir(dir)) {
+    return false;
+  }
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
-      fs.rmSync(dir, { recursive: true, force: true });
-      if (!fs.existsSync(dir)) {
+      await fs.promises.rm(dir, { recursive: true, force: true });
+      if (!(await pathExists(dir))) {
         return true;
       }
     } catch {
@@ -41,12 +49,22 @@ export async function removeTempDir(dir: string, maxAttempts: number = 3): Promi
       await delay(TEMP_RETRY_DELAYS_MS[Math.min(attempt, TEMP_RETRY_DELAYS_MS.length - 1)]);
     }
   }
-  return !pathExists(dir);
+  return !(await pathExists(dir));
 }
 
-function pathExists(dir: string): boolean {
+/** The target must live under the OS temp root AND carry `noeffect-` in its name. */
+function isContainedTempDir(dir: string): boolean {
+  const resolved = path.resolve(dir);
+  const relative = path.relative(path.resolve(os.tmpdir()), resolved);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    return false;
+  }
+  return path.basename(resolved).startsWith(TEMP_PREFIX);
+}
+
+async function pathExists(dir: string): Promise<boolean> {
   try {
-    fs.accessSync(dir);
+    await fs.promises.access(dir);
     return true;
   } catch {
     return false;

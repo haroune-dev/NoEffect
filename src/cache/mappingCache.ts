@@ -133,6 +133,14 @@ class MappingCache {
   private misses: number = 0;
 
   /**
+   * Entry cap — each entry is a whole batch result map and the key embeds
+   * the CSS content hash, so every analyzed content version owns its own
+   * entry: unbounded growth across a save history without oldest-first
+   * eviction (P2-MEM-07).
+   */
+  private static readonly LIMIT = 128;
+
+  /**
    * Map a complete CDP declaration batch to its local declarations, caching
    * the whole batch so identical inputs never re-run the mapper.
    *
@@ -151,12 +159,16 @@ class MappingCache {
     const cached = this.entries.get(entryKey);
     if (cached) {
       this.hits++;
-      logger.info(`[Mapper Cache] Hit: ${declarations.length} declaration(s)`);
+      // Refresh recency: a hit re-inserts the batch at the back of the
+      // insertion order, so the LRU cap evicts least-recently-USED batches.
+      this.entries.delete(entryKey);
+      this.entries.set(entryKey, cached);
+      logger.debug(`[Mapper Cache] Hit: ${declarations.length} declaration(s)`);
       return cached;
     }
 
     this.misses++;
-    logger.info(`[Mapper Cache] Miss: ${declarations.length} declaration(s)`);
+    logger.debug(`[Mapper Cache] Miss: ${declarations.length} declaration(s)`);
 
     const mapper = new DeclarationMapper(rules, cssFilePath);
     const results = new Map<string, LocalDeclarationMatch | null>();
@@ -176,6 +188,12 @@ class MappingCache {
       results.set(keys.get(declaration)!, mapper.match(declaration));
     }
 
+    if (this.entries.size >= MappingCache.LIMIT) {
+      const oldest = this.entries.keys().next().value;
+      if (oldest !== undefined) {
+        this.entries.delete(oldest);
+      }
+    }
     this.entries.set(entryKey, results);
     return results;
   }

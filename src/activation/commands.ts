@@ -28,6 +28,7 @@ import { astCache } from '../cache/astCache';
 import { fileHashCache } from '../cache/fileHashCache';
 import { mappingCache } from '../cache/mappingCache';
 import { htmlFragmentCache, embeddedParseCache, embeddedMappingCache } from '../cache/embeddedCssCache';
+import { multiPassCache } from '../cache/multiPassCache';
 import { messageForFailure, NotificationDedupe, shouldNotify, ActionId } from '../session/notifications';
 
 /** How the run lifecycle is surfaced to the status bar (single provider). */
@@ -520,6 +521,7 @@ export function registerCommands(
       htmlFragmentCache.reset();
       embeddedParseCache.reset();
       embeddedMappingCache.reset();
+      multiPassCache.reset();
       decorationManager.clearAllDecorations();
       logger.info('[Cache] Caches and decorations cleared by user command');
       void vscode.window.showInformationMessage('NoEffect caches cleared.');

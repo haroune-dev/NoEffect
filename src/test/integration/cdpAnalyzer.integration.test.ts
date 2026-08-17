@@ -1907,7 +1907,7 @@ test('crossdir-multi: distance-first selection feeds the merged evidence (Level 
   // Distance-first selection is a resolution property: the root index.html
   // (distance 1) must rank before the two pages/ documents (distance 2,
   // alphabetical). Proof at the resolution layer, independent of passes.
-  const ranked = resolveCompanionsAll({ cssFilePath });
+  const ranked = await resolveCompanionsAll({ cssFilePath });
   assert.deepEqual(
     ranked.map((companion) => path.relative(fixture, companion.htmlPath)),
     ['index.html', path.join('pages', 'index.html'), path.join('pages', 'a.html')],
@@ -2010,7 +2010,7 @@ test('companion expansion: rank-4 evidence changes the verdict, and a real evide
     companionSettings.workspaceFolderProvider = previousProvider;
   });
 
-  const ranked = resolveCompanionsAll({ cssFilePath });
+  const ranked = await resolveCompanionsAll({ cssFilePath });
   assert.deepEqual(
     ranked.map((companion) => path.basename(companion.htmlPath)),
     ['a.html', 'b.html', 'c.html', 'd.html'],
@@ -2366,7 +2366,7 @@ test('T2 [F3] failed-attempt non-poisoning: a failed run never records a skip id
   // is known before the first — failed — run.
   const cssReal = path.normalize(path.resolve(cssFilePath));
   const primaryRoot = companionSettings.workspaceFolderProvider?.(cssFilePath) ?? path.dirname(cssReal);
-  companionCache.set(`${primaryRoot}|${cssReal}`, resolveCompanionsAll({ cssFilePath }));
+  companionCache.set(`${primaryRoot}|${cssReal}`, await resolveCompanionsAll({ cssFilePath }));
 
   const store = new SessionManager();
   const analyzer = new CdpAnalyzer({ globalOutcomeStore: store });

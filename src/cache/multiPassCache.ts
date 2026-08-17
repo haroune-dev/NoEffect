@@ -15,8 +15,11 @@
  * `cssHash|K|ordered tuple of selected companion hashes`. A warm run is
  * K lookups + one pure merge — no navigation, no rescan, no I/O.
  *
- * `reset()` clears everything (wired to the cache-reset watchers alongside
- * the companion-resolution cache).
+ * Both stores are bounded LRU-style caches (oldest-first eviction at
+ * `PASS_LIMIT` / `MERGED_LIMIT`): every analyzed content version of every
+ * stylesheet owns its own entries, so without a cap long sessions grow
+ * unboundedly (P2-MEM-07). `reset()` clears everything — wired into the
+ * `noEffect.clearCache` command (P2-MEM-08).
  */
 
 import { PassOutcome, MergedResult } from '../engine/verdictMerge';
@@ -30,6 +33,10 @@ export interface CachedPassEntry {
 }
 
 class MultiPassCache {
+  /** Entry caps — content-version-addressed, so unbounded without eviction. */
+  private static readonly PASS_LIMIT = 512;
+  private static readonly MERGED_LIMIT = 128;
+
   private readonly passes = new Map<string, CachedPassEntry>();
   private readonly merged = new Map<string, Map<string, MergedResult>>();
   private passHits: number = 0;
@@ -64,6 +71,9 @@ class MultiPassCache {
       return undefined;
     }
     this.passHits++;
+    // Refresh recency so the LRU cap evicts least-recently-used entries.
+    this.passes.delete(key);
+    this.passes.set(key, cached);
     return {
       outcome: {
         ...cached.outcome,
@@ -74,6 +84,7 @@ class MultiPassCache {
   }
 
   setPass(key: string, entry: CachedPassEntry): void {
+    evictOldest(this.passes, MultiPassCache.PASS_LIMIT);
     this.passes.set(key, {
       outcome: {
         ...entry.outcome,
@@ -90,10 +101,13 @@ class MultiPassCache {
       return undefined;
     }
     this.mergedHits++;
+    this.merged.delete(key);
+    this.merged.set(key, cached);
     return cached;
   }
 
   setMerged(key: string, merged: Map<string, MergedResult>): void {
+    evictOldest(this.merged, MultiPassCache.MERGED_LIMIT);
     this.merged.set(key, merged);
   }
 
@@ -124,3 +138,13 @@ class MultiPassCache {
 
 /** Shared multi-pass cache instance used by the analyzer pipeline. */
 export const multiPassCache = new MultiPassCache();
+
+/** Evict the oldest-inserted entry when a cache reaches `limit` (LRU-style cap). */
+function evictOldest<K, V>(map: Map<K, V>, limit: number): void {
+  if (map.size >= limit) {
+    const oldest = map.keys().next().value;
+    if (oldest !== undefined) {
+      map.delete(oldest);
+    }
+  }
+}

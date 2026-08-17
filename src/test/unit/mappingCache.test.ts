@@ -205,3 +205,37 @@ test('equal reports of ONE authored declaration collapse onto the same local dec
   assert.ok(results.get(keys.get(batch[0])!), 'the first report claims the declaration');
   assert.equal(results.get(keys.get(batch[1])!), null, 'the equal second report must not claim it again');
 });
+
+test('batch store is bounded: the oldest batch evicts at the cap', () => {
+  mappingCache.reset();
+  const rules = new CssAstParser().parse(CSS_CONTENT, CSS_PATH);
+  for (let i = 0; i < 129; i++) {
+    mappingCache.matchAll(cssHash('x' + i), CSS_PATH, rules, INACTIVE_BATCH);
+  }
+
+  const before = mappingCache.stats();
+  mappingCache.matchAll(cssHash('x0'), CSS_PATH, rules, INACTIVE_BATCH);
+  assert.equal(
+    mappingCache.stats().misses,
+    before.misses + 1,
+    'the oldest batch was evicted — re-mapped from scratch'
+  );
+});
+
+test('batch store evicts least-recently-USED batches (a hit refreshes recency)', () => {
+  mappingCache.reset();
+  const rules = new CssAstParser().parse(CSS_CONTENT, CSS_PATH);
+  for (let i = 0; i < 128; i++) {
+    mappingCache.matchAll(cssHash('x' + i), CSS_PATH, rules, INACTIVE_BATCH);
+  }
+
+  const refreshed = cssHash('x0');
+  mappingCache.matchAll(refreshed, CSS_PATH, rules, INACTIVE_BATCH); // hit — refresh recency
+  mappingCache.matchAll(cssHash('x128'), CSS_PATH, rules, INACTIVE_BATCH); // over cap → evicts LRU
+
+  const before = mappingCache.stats();
+  mappingCache.matchAll(refreshed, CSS_PATH, rules, INACTIVE_BATCH);
+  assert.equal(mappingCache.stats().hits, before.hits + 1, 'the refreshed batch survived the eviction');
+  mappingCache.matchAll(cssHash('x1'), CSS_PATH, rules, INACTIVE_BATCH);
+  assert.equal(mappingCache.stats().misses, before.misses + 1, 'the least-recently-used batch is gone');
+});

@@ -399,7 +399,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
     // per selector) is the fallback — and with companions, the wrapper is
     // NEVER mixed in, including when every companion pass fails (synthetic
     // evidence never mixes with real evidence).
-    const rankedCompanions = this.resolveCompanionsFor(cssFilePath);
+    const rankedCompanions = await this.resolveCompanionsFor(cssFilePath);
     if (rankedCompanions && rankedCompanions.length > 0) {
       return this.analyzeWithCompanions({
         cssFilePath,
@@ -955,7 +955,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
       // No validated snapshot (reset cache, changed companion): resolve now
       // — this run's resolution populates the very snapshot it judges
       // against, so the recorded fingerprint always matches the evidence.
-      this.resolveCompanionsFor(sheet.path);
+      await this.resolveCompanionsFor(sheet.path);
       contextFingerprint = companionContextFingerprintFor(sheet.path);
       if (contextFingerprint === STALE_CONTEXT_FINGERPRINT) {
         logger.warn(
@@ -2016,7 +2016,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
    * value is the FULL ranked list (pre-truncation), so coverage `total` /
    * `skipped` stay consistent between warm and cold runs.
    */
-  private resolveCompanionsFor(cssFilePath: string): CompanionResolution[] | null {
+  private async resolveCompanionsFor(cssFilePath: string): Promise<CompanionResolution[] | null> {
     const cssReal = path.normalize(path.resolve(cssFilePath));
     const primaryRoot =
       companionSettings.workspaceFolderProvider?.(cssFilePath) ?? path.dirname(cssReal);
@@ -2028,7 +2028,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
       return cached;
     }
 
-    const ranked = resolveCompanionsAll({ cssFilePath });
+    const ranked = await resolveCompanionsAll({ cssFilePath });
     companionCache.set(cacheKey, ranked);
     if (ranked.length > 0) {
       logger.info(

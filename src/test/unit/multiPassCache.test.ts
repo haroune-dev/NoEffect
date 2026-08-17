@@ -139,3 +139,34 @@ test('reset clears entries and counters', () => {
   assert.equal(cache.getMerged('m'), undefined);
   assert.deepEqual(cache.stats(), { passHits: 0, passMisses: 1, mergedHits: 0, mergedMisses: 1 });
 });
+
+test('pass store is bounded: the oldest entry evicts at the cap', () => {
+  const cache = fresh();
+  const entry = { outcome: outcome(0, []), locatedSelectors: [] };
+  for (let i = 0; i < 513; i++) {
+    cache.setPass(`css|html${i}`, entry);
+  }
+  assert.equal(cache.getPass('css|html0'), undefined, 'the oldest pass entry was evicted');
+  assert.ok(cache.getPass('css|html512'), 'the most recent entry survives');
+});
+
+test('pass store evicts least-recently-USED entries (a hit refreshes recency)', () => {
+  const cache = fresh();
+  const entry = { outcome: outcome(0, []), locatedSelectors: [] };
+  for (let i = 0; i < 512; i++) {
+    cache.setPass(`p${i}`, entry);
+  }
+  assert.ok(cache.getPass('p0'), 'refreshing the oldest entry hits');
+  cache.setPass('p512', entry);
+  assert.ok(cache.getPass('p0'), 'the refreshed entry survived the eviction');
+  assert.equal(cache.getPass('p1'), undefined, 'the least-recently-used entry was evicted');
+});
+
+test('merged store is bounded: the oldest key evicts at the cap', () => {
+  const cache = fresh();
+  for (let i = 0; i < 129; i++) {
+    cache.setMerged(`fp|ctx${i}`, new Map());
+  }
+  assert.equal(cache.getMerged('fp|ctx0'), undefined, 'the oldest merged entry was evicted');
+  assert.ok(cache.getMerged('fp|ctx128'), 'the most recent entry survives');
+});

@@ -160,12 +160,12 @@ export class DeclarationMapper {
     this.claimed.add(best);
 
     const match = this.toMatch(best);
-    logger.info(
+    logger.debug(
       `[Mapper] Matched CDP declaration to local declaration: ${name} ` +
       `(selector '${cdpSelector || '(none)'}' -> '${best.selector}')`
     );
-    logger.info(`[Mapper] Resolved declaration range: ${formatRange(match.declarationRange)}`);
-    logger.info(`[Mapper] Resolved icon anchor range: ${formatRange(match.iconAnchorRange)}`);
+    logger.debug(`[Mapper] Resolved declaration range: ${formatRange(match.declarationRange)}`);
+    logger.debug(`[Mapper] Resolved icon anchor range: ${formatRange(match.iconAnchorRange)}`);
     return match;
   }
 

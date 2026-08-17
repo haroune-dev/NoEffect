@@ -28,30 +28,72 @@ export interface AstCacheEntry {
   hit: boolean;
 }
 
+/** On-disk identity of the content an AST entry was parsed from. */
+interface AstIdentity {
+  hash: string;
+  rules: CssRule[];
+  size: number;
+  mtimeMs: number;
+}
+
 class AstCache {
-  private readonly entries = new Map<string, { hash: string; rules: CssRule[] }>();
+  private readonly entries = new Map<string, AstIdentity>();
   private hits: number = 0;
   private misses: number = 0;
 
   /**
    * Read a stylesheet, parse it once per unique content and return the
    * cached rules for subsequent accesses with identical content.
+   *
+   * The warm path is gated by a cheap `stat` (size + mtime): an unchanged
+   * file is returned as a hit WITHOUT re-reading and re-hashing it
+   * (P2-PERF-09). A vanished file drops its entry lazily (P2-MEM-07) and
+   * the read throws as it always did.
    */
   getOrParse(filePath: string): AstCacheEntry {
+    const cached = this.entries.get(filePath);
+    if (cached) {
+      let stat: fs.Stats | null = null;
+      try {
+        stat = fs.statSync(filePath);
+      } catch {
+        this.entries.delete(filePath);
+      }
+      if (stat && stat.size === cached.size && stat.mtimeMs === cached.mtimeMs) {
+        this.hits++;
+        logger.debug(`[AST Cache] Hit: ${filePath}`);
+        return { rules: cached.rules, hash: cached.hash, hit: true };
+      }
+    }
+
     const content = fs.readFileSync(filePath, 'utf-8');
     const hash = this.hash(content);
 
-    const cached = this.entries.get(filePath);
     if (cached && cached.hash === hash) {
+      // Identical bytes rewritten: not a content change — the cached
+      // parse stays valid, only the on-disk identity is refreshed.
       this.hits++;
-      logger.info(`[AST Cache] Hit: ${filePath}`);
+      logger.debug(`[AST Cache] Hit: ${filePath}`);
+      const stat = this.statOf(filePath);
+      this.entries.set(filePath, {
+        hash,
+        rules: cached.rules,
+        size: stat?.size ?? -1,
+        mtimeMs: stat?.mtimeMs ?? -1,
+      });
       return { rules: cached.rules, hash, hit: true };
     }
 
     this.misses++;
-    logger.info(`[AST Cache] Miss: ${filePath}`);
+    logger.debug(`[AST Cache] Miss: ${filePath}`);
     const rules = new CssAstParser().parse(content, filePath);
-    this.entries.set(filePath, { hash, rules });
+    const stat = this.statOf(filePath);
+    this.entries.set(filePath, {
+      hash,
+      rules,
+      size: stat?.size ?? -1,
+      mtimeMs: stat?.mtimeMs ?? -1,
+    });
     return { rules, hash, hit: false };
   }
 
@@ -69,6 +111,14 @@ class AstCache {
 
   private hash(content: string): string {
     return crypto.createHash('sha256').update(content, 'utf-8').digest('hex');
+  }
+
+  private statOf(filePath: string): fs.Stats | null {
+    try {
+      return fs.statSync(filePath);
+    } catch {
+      return null;
+    }
   }
 }
 

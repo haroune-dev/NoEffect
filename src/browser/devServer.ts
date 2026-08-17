@@ -200,9 +200,22 @@ export class DevServer {
         socket.destroy();
       }
       this.sockets.clear();
-      server.close(() => resolve());
-      // Bounded: a stuck close must never hang the caller.
-      setTimeout(() => resolve(), RETRY_POLICY.graceful_close.timeoutMs);
+      let settled = false;
+      const settle = (): void => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(fallbackTimer);
+        resolve();
+      };
+      server.close(() => settle());
+      // Bounded: a stuck close must never hang the caller. The timer is
+      // cleared when close() finishes first, so it neither fires later as a
+      // no-op nor keeps the event loop referenced for the full timeout
+      // (P3-PERF-35).
+      const fallbackTimer = setTimeout(() => settle(), RETRY_POLICY.graceful_close.timeoutMs);
+      fallbackTimer.unref();
     });
   }
 }

@@ -85,3 +85,21 @@ test('different files are cached independently', () => {
   assert.equal(astCache.getOrParse(fileA).hit, true);
   assert.equal(astCache.getOrParse(fileB).hit, true);
 });
+
+test('a vanished file drops its entry lazily: recreating it is a fresh parse', () => {
+  astCache.reset();
+  const file = scratchCss(INACTIVE_CSS);
+  astCache.getOrParse(file);
+
+  fs.rmSync(file);
+  assert.throws(() => astCache.getOrParse(file), 'the read contract is preserved: a vanished file still throws');
+
+  fs.writeFileSync(file, INACTIVE_CSS);
+  const recreated = astCache.getOrParse(file);
+  assert.equal(
+    recreated.hit,
+    false,
+    'the dropped entry is not reused after the file reappears — a stale parse can never surface'
+  );
+  assert.equal(astCache.getOrParse(file).hit, true, 'the recreated entry caches normally afterwards');
+});
