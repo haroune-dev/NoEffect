@@ -83,11 +83,29 @@ export const FAILURE_MESSAGE_MAP: Readonly<Record<string, FailureMessage>> = {
     actions: ['retry', 'showOutput'],
     notifyable: false,
   },
-  DEV_SERVER_FAILED: {
-    code: 'DEV_SERVER_FAILED',
-    message: 'The local analysis server failed.',
-    actions: ['showOutput'],
+  DEVSERVER_START_FAILED: {
+    code: 'DEVSERVER_START_FAILED',
+    message: 'The local analysis server could not be started.',
+    actions: ['retry', 'showOutput'],
     notifyable: true,
+  },
+  DEVSERVER_PORT_BUSY: {
+    code: 'DEVSERVER_PORT_BUSY',
+    message: 'The analysis server port is in use; a retry may find it free.',
+    actions: ['retry', 'showOutput'],
+    notifyable: true,
+  },
+  COMPANION_FAILED: {
+    code: 'COMPANION_FAILED',
+    message: 'The companion analysis could not be completed.',
+    actions: ['showOutput'],
+    notifyable: false,
+  },
+  ANALYSIS_CANCELLED: {
+    code: 'ANALYSIS_CANCELLED',
+    message: 'The analysis was cancelled.',
+    actions: ['showOutput'],
+    notifyable: false,
   },
   SESSION_LOST: {
     code: 'SESSION_LOST',
@@ -114,7 +132,7 @@ export const FAILURE_MESSAGE_MAP: Readonly<Record<string, FailureMessage>> = {
  * neutral entry — unknown codes never invent a message or notify.
  */
 export function messageForFailure(failure: AnalysisFailure): FailureMessage {
-  const mapped = FAILURE_MESSAGE_MAP[failure.code] ?? FAILURE_MESSAGE_MAP[failure.code.replace(/_FAILED$/, '')];
+  const mapped = FAILURE_MESSAGE_MAP[failure.code];
   if (mapped) {
     return mapped;
   }
@@ -136,8 +154,6 @@ export function shouldNotify(failure: AnalysisFailure, blocking: boolean): boole
   const mapped = messageForFailure(failure);
   return blocking && mapped.notifyable;
 }
-
-export type NotificationId = `${string}:${string}`;
 
 /**
  * One-notification-per-code dedupe for persistent failures. `stateKey`

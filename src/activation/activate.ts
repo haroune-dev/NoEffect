@@ -337,7 +337,6 @@ export function activateExtension(context: vscode.ExtensionContext): vscode.Disp
   // Commands were registered early; the readiness check itself is deferred
   // (controller.start() schedules it on a microtask), so activation stays fast.
   readinessUi.controller.start();
-  disposables.push(...readinessUi.disposables);
 
   // Decoration hovers are attached to text ranges. The warning icon is an
   // `after` attachment, so provide the same Markdown hover at the range end

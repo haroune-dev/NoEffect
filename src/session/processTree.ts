@@ -20,7 +20,7 @@ import { logger } from '../utils/logger';
 import { sleep } from './timing';
 import { RETRY_POLICY } from './policy';
 
-export const GRACEFUL_KILL_DELAY_MS = 1250;
+const GRACEFUL_KILL_DELAY_MS = 1250;
 
 export interface KillPlan {
   /** Signalling-style kill to attempt first (POSIX only). */
@@ -65,7 +65,7 @@ export function signalProcessGroup(pid: number, signal: NodeJS.Signals): void {
 }
 
 /** Run `taskkill /pid /T /F` and resolve when it spawned (bounded). */
-export function runTaskkill(pid: number): Promise<void> {
+function runTaskkill(pid: number): Promise<void> {
   return new Promise((resolve) => {
     let child;
     try {

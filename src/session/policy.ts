@@ -9,15 +9,11 @@
  * Rules (invariants, enforced by construction):
  *   - `maxRetries` = number of ADDITIONAL attempts after the first (so
  *     "max retries 1" means at most 2 tries in total),
- *   - only transient failures are retried (see `isTransientFailure`);
- *     permanent failures go through once and fail fast,
+ *   - retries are only configured on operations where a retry can plausibly
+ *     succeed; everything else goes through once and fails fast,
  *   - every retry is preceded by `backoffFor(operation, attempt)`,
- *   - every wait is bounded by `timeoutMsFor(operation)`,
- *   - retries and timeouts are logged with a stable reason code from
- *     {@link policyReasonCodes}.
+ *   - every wait is bounded by `timeoutMsFor(operation)`.
  */
-
-import { FailureKind } from '../failure/model';
 
 export type RetryOperation =
   | 'browser_launch'
@@ -69,65 +65,10 @@ export const RETRY_POLICY: Readonly<Record<RetryOperation, RetryPolicyEntry>> = 
 };
 
 /** Backoff delays between retry attempts, applied as `attempt` grows. */
-export const RETRY_BACKOFF_MS = [250, 500, 1000] as const;
+const RETRY_BACKOFF_MS = [250, 500, 1000] as const;
 
 /** Deterministic backoff for the 1-based `attempt` (1 = first retry). */
 export function backoffFor(attempt: number): number {
   const index = Math.min(Math.max(attempt, 1), RETRY_BACKOFF_MS.length) - 1;
   return RETRY_BACKOFF_MS[index];
 }
-
-/** Whether an operation is allowed to retry at all. */
-export function isRetriable(operation: RetryOperation): boolean {
-  return RETRY_POLICY[operation].maxRetries > 0;
-}
-
-/**
- * Failure kinds the policy treats as TRANSIENT (safe to retry once the
- * wait budget allows). Everything else is permanent and fails fast.
- *
- * Transient: network/WS drops, timeouts, one-off load errors, port races,
- * a browser that came up but died during startup. Permanent: anything that
- * will not change by retrying (missing binary, invalid path, workspace or
- * file gating, capability notes).
- */
-const TRANSIENT_KINDS: ReadonlySet<FailureKind> = new Set([
-  'browser_crashed',
-  'cdp_connection_failed',
-  'page_load_failed',
-  'page_load_timeout',
-  'devserver_port_busy',
-  'devserver_start_failed',
-  'analysis_timeout',
-]);
-
-const PERMANENT_KINDS: ReadonlySet<FailureKind> = new Set([
-  'chromium_missing',
-  'chromium_path_invalid',
-  'workspace_untrusted',
-  'workspace_unsupported',
-  'file_unsaved',
-  'file_too_large',
-  'file_ignored',
-  'selector_not_queryable',
-  'no_companion_html',
-  'analysis_context_missing',
-  'disabled',
-  'live_analysis_unavailable',
-]);
-
-/** True when a classified failure is worth retrying. */
-export function isTransientKind(kind: FailureKind): boolean {
-  return TRANSIENT_KINDS.has(kind);
-}
-
-/** True when a failure must fail fast (never retry). */
-export function isPermanentKind(kind: FailureKind): boolean {
-  return PERMANENT_KINDS.has(kind);
-}
-
-/** Stable, short reason codes used in logs, events and reports. */
-export const policyReason = (
-  operation: RetryOperation,
-  phase: 'retry' | 'timeout' | 'gave_up' | 'born'
-): string => `${operation}.${phase}`;

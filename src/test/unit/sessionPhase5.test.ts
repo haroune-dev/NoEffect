@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-import { RETRY_POLICY, backoffFor, isTransientKind, isPermanentKind } from '../../session/policy';
+import { RETRY_POLICY, backoffFor } from '../../session/policy';
 import { SessionHealth } from '../../session/health';
 import { EventLog } from '../../session/eventLog';
 import { buildKillPlan } from '../../session/processTree';
@@ -59,21 +59,6 @@ test('policy: the session-build budget covers the sum of its phases', () => {
     RETRY_POLICY.restart_cleanup.timeoutMs < launch,
     'restart_cleanup remains a cleanup cap, not a build budget'
   );
-});
-
-test('policy: transient and permanent failure kinds are disjoint claims', () => {
-  // Transient — safe to retry after a wait.
-  assert.equal(isTransientKind('browser_crashed'), true);
-  assert.equal(isTransientKind('cdp_connection_failed'), true);
-  assert.equal(isTransientKind('page_load_timeout'), true);
-  assert.equal(isTransientKind('devserver_port_busy'), true);
-  assert.equal(isTransientKind('analysis_timeout'), true);
-  // Permanent — retrying cannot change the outcome.
-  assert.equal(isTransientKind('chromium_missing'), false);
-  assert.equal(isTransientKind('workspace_untrusted'), false);
-  assert.equal(isTransientKind('file_too_large'), false);
-  assert.equal(isPermanentKind('chromium_missing'), true);
-  assert.equal(isPermanentKind('file_ignored'), true);
 });
 
 test('policy: backoff grows within the fixed table and is bounded', () => {
@@ -312,6 +297,24 @@ test('shouldNotify only fires for notifyable failures blocking explicit work', (
     false,
     'self-healing CDP loss must never notify even when blocking'
   );
+});
+
+test('notification map: every dev-server and companion code resolves to its own entry', () => {
+  const codes = [
+    'DEVSERVER_START_FAILED',
+    'DEVSERVER_PORT_BUSY',
+    'COMPANION_FAILED',
+    'ANALYSIS_CANCELLED',
+  ] as const;
+  for (const code of codes) {
+    const mapped = messageForFailure({ code, kind: 'unknown', message: code } as never);
+    assert.equal(
+      mapped.code,
+      code,
+      `${code} must map to its own entry, not the generic fallback`
+    );
+    assert.ok(mapped.actions.length >= 1, `${code} must suggest an action`);
+  }
 });
 
 test('notification dedupe: one per code per state key, resets with the state', () => {

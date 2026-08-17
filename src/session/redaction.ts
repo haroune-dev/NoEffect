@@ -68,11 +68,6 @@ export function redactLine(line: string): string {
   return cleaned.length > 300 ? `${cleaned.slice(0, 300)}…` : cleaned;
 }
 
-/** Redact each entry (bounded stderr excerpt). */
-export function redactLines(lines: string[]): string[] {
-  return lines.map(redactLine);
-}
-
 /** Home-path shortening used by the report (absolute path → `…`). */
 export function shortenPath(filePath: string): string {
   const relative = filePath.startsWith(home) ? filePath.slice(home.length) : filePath;
