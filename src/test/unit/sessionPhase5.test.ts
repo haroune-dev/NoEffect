@@ -241,6 +241,33 @@ test('redaction scrubs assignment values, tokens and home paths', () => {
   assert.ok(homeScrubbed.includes('REDACTED_HOME'));
 });
 
+test('redaction scrubs structured JSON values (P2-SEC-04)', () => {
+  const json = redact('{"apiKey": "secret123", "token": "abc", "file": "styles.css"}');
+  assert.ok(!json.includes('secret123'), 'JSON string values are redacted');
+  assert.ok(!json.includes('"abc"'), 'multi-key JSON values are redacted');
+  assert.ok(json.includes('"apiKey": REDACTED'), 'the JSON key structure survives');
+  assert.ok(json.includes('"file": REDACTED'), 'every string value is scrubbed');
+
+  const escaped = redact('{"note": "say \\"hi\\" now"}');
+  assert.ok(!escaped.includes('say'), 'an escaped quote inside a JSON value cannot defeat the pass');
+  assert.ok(escaped.includes('REDACTED'));
+});
+
+test('redaction scrubs lowercase keys (P2-SEC-04)', () => {
+  assert.equal(redact('api_key=secret123'), 'api_key=REDACTED', 'lowercase bare keys are redacted');
+  assert.equal(
+    redact('https://host/?token=abc123&x=1'),
+    'https://host/?token=REDACTED',
+    'a lowercase key floating in a URL query is redacted (value through the next separator) ' +
+      'while the URL scheme stays intact'
+  );
+  assert.equal(
+    redact('https://host/path?a=b'),
+    'https://host/path?a=REDACTED',
+    'the scheme prefix is never swallowed by the key pass'
+  );
+});
+
 test('redactLine bounds long excerpts and keeps short lines intact', () => {
   const original = 'API_KEY=abc ' + 'x'.repeat(400);
   const line = redactLine(original);

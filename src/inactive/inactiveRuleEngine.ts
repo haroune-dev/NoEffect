@@ -42,6 +42,19 @@ import { logger } from '../utils/logger';
 import { RuleRegistry } from './ruleRegistry';
 import { REASON_CODES } from './reasonCode';
 
+/**
+ * Escape authored CSS text for safe embedding inside a Markdown code span.
+ * Backticks are escaped so a selector containing a backtick (legal inside
+ * a quoted attribute value, e.g. `[data-x="a`b"]`) can never terminate the
+ * span early, and backslashes so a literal `\` cannot be misread as an
+ * escape sequence by a later processing stage. Backtick-wrapped fragments
+ * of authored CSS must be escaped at every construction site before they
+ * reach hover Markdown (P2-SEC-06).
+ */
+function escapeSelectorForMarkdown(selector: string): string {
+  return selector.replace(/[\\`]/g, '\\$&');
+}
+
 export class InactiveRuleEngine implements InactivePropertyEngine {
   constructor(private readonly registry: RuleRegistry) {}
 
@@ -71,7 +84,7 @@ export class InactiveRuleEngine implements InactivePropertyEngine {
           propertyName: declaration.propertyName,
           reasonCode: REASON_CODES.OVERRIDDEN_BY_CROSS_RULE_DECLARATION,
           reasonText: winnerSelector
-            ? `Overridden by '${winnerSelector}' — that rule wins the cascade for this element, ` +
+            ? `Overridden by \`${escapeSelectorForMarkdown(winnerSelector)}\` — that rule wins the cascade for this element, ` +
               `so this declaration has no effect here.`
             : 'Overridden by the inline style attribute — it wins the cascade for this element, ' +
               'so this declaration has no effect here.',

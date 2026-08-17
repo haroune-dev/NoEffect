@@ -235,3 +235,17 @@ test('extractQueryableSelectorsDetailed: no selectors still reports zero drops',
   assert.deepEqual(queryable, []);
   assert.deepEqual(dropped, []);
 });
+
+test('wrapper page escapes the stylesheet href at the interpolation site (P2-SEC-05)', () => {
+  const html = buildWrapperPage(['.a'], '/x" onload="alert(1)<b>&.css');
+  assert.ok(
+    html.includes('href="/x&quot; onload=&quot;alert(1)&lt;b&gt;&amp;.css"'),
+    'quotes, angle brackets and ampersands are escaped inside the attribute'
+  );
+  assert.ok(!html.includes('onload="alert'), 'no raw attribute injection from the href');
+});
+
+test('wrapper page keeps ordinary hrefs byte-identical', () => {
+  const html = buildWrapperPage(['.a'], '/styles.css');
+  assert.ok(html.includes('<link rel="stylesheet" href="/styles.css">'), 'the common path is unchanged');
+});

@@ -317,3 +317,34 @@ test('the effective last duplicate is judged by its property rule as usual', () 
   assert.equal(result, INACTIVE_RESULT);
   assert.equal(calls.length, 1, 'the effective declaration goes through the normal dispatch');
 });
+
+test('a cross-rule override backtick-wraps and escapes the winner selector (P2-SEC-06)', () => {
+  calls = [];
+  const registry = new RuleRegistry();
+  const engine = new InactiveRuleEngine(registry);
+  const declaration = makeDeclaration('color');
+  declaration.isOverridden = true;
+  declaration.isCrossRuleOverride = true;
+  // A backtick is legal inside a quoted attribute value; a backslash is a
+  // legal CSS escape — both must not break out of the Markdown code span.
+  declaration.overriddenBy = {
+    ...makeDeclaration('color'),
+    selectorText: '[data-x="a`b"]\\.c',
+  };
+
+  const result = engine.inspect(makeContext(declaration, makeLayout()));
+  assert.ok(result, 'a cross-rule override is always inactive');
+  assert.equal(result.reasonCode, REASON_CODES.OVERRIDDEN_BY_CROSS_RULE_DECLARATION);
+  assert.ok(
+    result.reasonText.includes('Overridden by `'),
+    'the winner selector is backtick-wrapped'
+  );
+  assert.ok(
+    !result.reasonText.includes('a`b'),
+    'a raw backtick from the selector never reaches the markdown text'
+  );
+  assert.ok(
+    result.reasonText.includes('[data-x="a\\`b"]\\\\.c'),
+    'backticks and backslashes are escaped inside the code span'
+  );
+});

@@ -209,7 +209,13 @@ export function hasExplicitTag(selector: string): boolean {
  * stylesheet and contains an element structure for every queryable selector
  * (nested for descendant/child combinators). Tag-naming selectors
  * (`img.x`) produce their real element; bare class/id selectors default to
- * a `<div>` — the operative element type of the analysis page.
+ * `<div>` — the operative element type of the analysis page.
+ *
+ * `cssHref` is authored/browser-facing text — escape it at the
+ * interpolation site so a filename containing quotes, angle brackets or
+ * ampersands can neither inject attributes/elements into the served page
+ * nor break the attribute (P2-SEC-05). The caller percent-encodes the
+ * URL separately; the escaping here is pure HTML safety.
  */
 export function buildWrapperPage(selectors: string[], cssHref: string): string {
   const bodies = selectors.map((selector) => {
@@ -228,7 +234,7 @@ export function buildWrapperPage(selectors: string[], cssHref: string): string {
     '<html lang="en">',
     '<head>',
     '<meta charset="UTF-8">',
-    `<link rel="stylesheet" href="${cssHref}">`,
+    `<link rel="stylesheet" href="${escapeHtmlAttribute(cssHref)}">`,
     '<title>NoEffect Analysis Page</title>',
     '</head>',
     '<body>',
@@ -236,4 +242,13 @@ export function buildWrapperPage(selectors: string[], cssHref: string): string {
     '</body>',
     '</html>',
   ].join('\n');
+}
+
+/** Escape text destined for a double-quoted HTML attribute (P2-SEC-05). */
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }

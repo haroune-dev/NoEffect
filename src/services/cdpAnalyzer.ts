@@ -374,10 +374,19 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
     const directory = path.dirname(cssFilePath);
     const fileName = path.basename(cssFilePath);
 
+    // Serve-boundary encoding (P2-SEC-05): the filename is percent-encoded
+    // so `#`, `?`, spaces or quotes can neither break the URL semantics the
+    // browser/dev-server round-trip depends on nor leak raw HTML into the
+    // served page (the interpolation site in `buildWrapperPage` HTML-escapes
+    // separately). The virtual-file registry key and the navigation URL
+    // share the same encoding, so the lookup stays consistent. Plain names
+    // encode to themselves — zero behavior change on the common path.
+    const encodedFileName = encodeURIComponent(fileName);
+
     // The wrapper page is served from memory; the stylesheet itself comes
     // from disk. It must be registered before the page is navigated to.
-    const wrapperName = `analysis-${fileName}.html`;
-    defaultLifecycle.setVirtualFile(wrapperName, buildWrapperPage(selectors, `/${fileName}`));
+    const wrapperName = `analysis-${encodedFileName}.html`;
+    defaultLifecycle.setVirtualFile(wrapperName, buildWrapperPage(selectors, `/${encodedFileName}`));
 
     const stylesheets: LocalStylesheet[] = [
       { path: cssFilePath, hash: parsed.hash, changed: !parsed.hit, rules: parsed.rules },

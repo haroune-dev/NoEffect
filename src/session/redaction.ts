@@ -7,15 +7,26 @@
  * shared report.
  *
  * Rules (keep predictable):
- *  - `NAME=value` / `NAME = value` assignments → the value becomes `<redacted>`,
+ *  - `NAME=value` / `NAME = value` assignments → the value becomes `REDACTED`
+ *    (keys matched case-insensitively, lowercase included),
  *  - values that FLOAT inside a URL query string (`token=`, `key=`) likewise,
- *  - the user home directory prefix is replaced with `~`,
- *  - hex/base64 blobs ≥ 24 chars → `<token>`.
+ *  - `"key": "value"` JSON pairs → the string value becomes `REDACTED`,
+ *  - the user home directory prefix is replaced with `REDACTED_HOME`,
+ *  - hex/base64 blobs ≥ 24 chars → `REDACTED_TOKEN`.
  */
 
 import * as os from 'os';
 
 const home = os.homedir().replace(/[\\/]+$/, '');
+
+/**
+ * Structured JSON form: `"key": "value"` — the string VALUE (including
+ * its quotes) becomes `REDACTED`, keeping the surrounding JSON parseable.
+ * Escaped quotes inside the strings (`\"`) are handled by the
+ * `(?:[^"\\]|\\.)*` alternation, so an escaped quote never ends the match
+ * early (P2-SEC-04: `{"apiKey": "secret123"}` previously passed through).
+ */
+const JSON_STRING_KV = /("(?:[^"\\]|\\.)*")\s*:\s*("(?:[^"\\]|\\.)*")/g;
 
 function redactHome(value: string): string {
   if (!home || home === '/') {
@@ -30,9 +41,16 @@ export function redact(input: string): string {
     return input;
   }
   let out = redactHome(input);
-  // NAME=value (including "NAME = value").
+  // Structured JSON first: scrub quoted values while the key/value pair is
+  // still intact, before the bare-key pass touches the surrounding text.
+  out = out.replace(JSON_STRING_KV, (_m, key: string) => `${key}: REDACTED`);
+  // NAME=value (including "NAME = value"). Keys are matched
+  // case-insensitively — lowercase keys (`api_key=`, `token=`) carry
+  // secrets too (P2-SEC-04), and the key class allows hyphens/dots.
+  // A `://`-scheme prefix (`https`, `http`, `ws`, ...) is never a secret
+  // key — the lookahead keeps URL schemes from being swallowed whole.
   out = out.replace(
-    /(\b[A-Z_][A-Z0-9_.]*(?:\s*[:=]\s*))([^\s;,]+|"[^"]*"|'[^']*')/g,
+    /(\b[A-Za-z_][A-Z0-9a-z_.-]*(?!:\/\/)\s*[:=]\s*)([^\s;,]+|"[^"]*"|'[^']*')/g,
     (_m, prefix: string) => `${prefix}REDACTED`
   );
   // Long token blobs (hex/base64-ish) anywhere in the text.
