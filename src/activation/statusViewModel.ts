@@ -116,9 +116,9 @@ export function buildStatusView(facts: ReadinessFacts): StatusView {
       });
     }
 
-lines.push({
-    label: `First-run welcome: ${facts.firstRunCompleted ? 'shown' : 'not shown yet'}`,
-  });
+    lines.push({
+      label: `First-run welcome: ${facts.firstRunCompleted ? 'shown' : 'not shown yet'}`,
+    });
   }
 
   if (facts.outcome) {

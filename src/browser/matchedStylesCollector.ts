@@ -2,6 +2,44 @@ import { CdpSourceRange } from '../models';
 import { MatchedCssDeclaration } from '../engine/inactivePropertyEngine';
 
 /**
+ * Minimal, read-only typing of the CDP CSS domain payloads this module
+ * consumes (`CSS.getMatchedStylesForNode`). Only the fields the collector
+ * reads are declared; everything else stays out of the contract.
+ */
+interface CdpCssProperty {
+  name: string;
+  value?: string;
+  important?: boolean;
+  range?: unknown;
+}
+
+interface CdpCssStyle {
+  styleSheetId?: string;
+  cssProperties?: CdpCssProperty[];
+  range?: unknown;
+  origin?: string;
+}
+
+interface CdpCssRule {
+  selectorList?: { text: string };
+  style?: CdpCssStyle;
+  origin?: string;
+}
+
+interface CdpRuleMatch {
+  rule?: CdpCssRule;
+}
+
+interface CdpMatchedStylesPayload {
+  inlineStyle?: CdpCssStyle;
+  matchedCSSRules?: CdpRuleMatch[];
+  pseudoElements?: Array<{
+    pseudoType?: unknown;
+    matches?: CdpRuleMatch[];
+  }>;
+}
+
+/**
  * Convert a raw CDP `CSS.getMatchedStylesForNode` payload into a flat list
  * of matched declarations.
  *
@@ -43,7 +81,7 @@ function normalizePseudoType(value: unknown): string {
 /** Extract the pseudo type and matches of one CDP pseudoElements entry. */
 function toPseudoElement(
   pseudo: unknown
-): { pseudoType: string; matches: Array<{ rule?: Record<string, any> }> } | null {
+): { pseudoType: string; matches: CdpRuleMatch[] } | null {
   if (!pseudo || typeof pseudo !== 'object') {
     return null;
   }
@@ -51,7 +89,7 @@ function toPseudoElement(
   if (!pseudoType) {
     return null;
   }
-  const matches = (pseudo as { matches?: Array<{ rule?: Record<string, any> }> }).matches ?? [];
+  const matches = (pseudo as { matches?: CdpRuleMatch[] }).matches ?? [];
   return { pseudoType, matches };
 }
 
@@ -73,11 +111,7 @@ export function collectMatchedDeclarations(
   matchedStyles: unknown
 ): MatchedCssDeclaration[] {
   const declarations: MatchedCssDeclaration[] = [];
-  const payload = matchedStyles as {
-    inlineStyle?: Record<string, any>;
-    matchedCSSRules?: Array<{ rule?: Record<string, any> }>;
-    pseudoElements?: Array<Record<string, any>>;
-  } | null;
+  const payload = matchedStyles as CdpMatchedStylesPayload | null;
 
   // One blockId per declaration block in response order (the inline
   // attribute, then each matched rule incl. pseudo matches). Duplicate
@@ -86,7 +120,7 @@ export function collectMatchedDeclarations(
   let ruleBlockCounter = 0;
 
   const pushRule = (
-    ruleMatch: { rule?: Record<string, any> } | undefined,
+    ruleMatch: CdpRuleMatch | undefined,
     pseudoElement: string | undefined
   ) => {
     const rule = ruleMatch?.rule;
@@ -182,10 +216,7 @@ export function collectMatchedDeclarations(
  * `hasPlaceSelfEffect`).
  */
 export function collectDeclaredDisplay(matchedStyles: unknown): string | undefined {
-  const payload = matchedStyles as {
-    inlineStyle?: Record<string, any>;
-    matchedCSSRules?: Array<{ rule?: Record<string, any> }>;
-  } | null;
+  const payload = matchedStyles as CdpMatchedStylesPayload | null;
 
   let declared: string | undefined;
   for (const ruleMatch of payload?.matchedCSSRules ?? []) {
@@ -228,9 +259,7 @@ export function collectDeclaredDisplay(matchedStyles: unknown): string | undefin
  */
 export function collectPseudoContent(matchedStyles: unknown): ReadonlyMap<string, string> {
   const contentByPseudo = new Map<string, string>();
-  const payload = matchedStyles as {
-    pseudoElements?: Array<Record<string, any>>;
-  } | null;
+  const payload = matchedStyles as CdpMatchedStylesPayload | null;
 
   for (const pseudo of payload?.pseudoElements ?? []) {
     const parsed = toPseudoElement(pseudo);
@@ -263,9 +292,7 @@ export function collectPseudoContent(matchedStyles: unknown): ReadonlyMap<string
  */
 export function collectPseudoTypes(matchedStyles: unknown): readonly string[] {
   const types: string[] = [];
-  const payload = matchedStyles as {
-    pseudoElements?: Array<Record<string, any>>;
-  } | null;
+  const payload = matchedStyles as CdpMatchedStylesPayload | null;
 
   for (const pseudo of payload?.pseudoElements ?? []) {
     const parsed = toPseudoElement(pseudo);

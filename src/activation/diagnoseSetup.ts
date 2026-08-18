@@ -14,7 +14,7 @@
 
 import { ReadinessFacts } from './statusViewModel';
 import { SessionHealthSnapshot } from '../session/health';
-import { CheckStatus, DiagnoseCheckResult, DrGroup } from '../session/report';
+import { DiagnoseCheckResult, DrGroup } from '../session/report';
 
 /** Validity of the configured browser path, derived from detection. */
 export type ConfiguredPathValidity = 'valid' | 'invalid' | 'not_set' | 'unknown';
@@ -36,7 +36,7 @@ export function configuredPathValidity(facts: ReadinessFacts): ConfiguredPathVal
 
 /** The next action hint for the current readiness reason. */
 export function setupHint(facts: ReadinessFacts): string {
-  const { settings, readiness, workspace } = facts;
+  const { settings, readiness } = facts;
   if (!settings.enabled) {
     return 'Enable the noEffect.enabled setting to analyze CSS.';
   }

@@ -1,8 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { overflowRule } from '../../inactive/rules/overflow/overflow';
-import { overflowXRule } from '../../inactive/rules/overflow/overflowX';
-import { overflowYRule } from '../../inactive/rules/overflow/overflowY';
+import { overflowRule, overflowXRule, overflowYRule } from '../../inactive/rules/overflow/overflow';
 import { REASON_CODES } from '../../inactive/reasonCode';
 import { MatchedCssDeclaration } from '../../engine/inactivePropertyEngine';
 import { LayoutContext, createLayoutContext } from '../../engine/layoutContext';

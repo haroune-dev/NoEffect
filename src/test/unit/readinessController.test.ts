@@ -249,7 +249,7 @@ test('change-only logging: same reason does not log again', async () => {
 test('setContext failures are swallowed silently', async () => {
   const contexts = new Map<string, boolean>();
   const failingHost: ReadinessHost = {
-    setContext: (key, value) => Promise.reject(new Error('setContext failed')).then(() => undefined),
+    setContext: (_key, _value) => Promise.reject(new Error('setContext failed')).then(() => undefined),
     log: () => {},
   };
   const statusBarHost: StatusBarHost = {

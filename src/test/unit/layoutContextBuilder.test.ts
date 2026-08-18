@@ -23,7 +23,7 @@ function mockCdp(
     failComputed?: boolean;
   } = {}
 ): {
-  cdp: { send(method: string, params: any): Promise<any> };
+  cdp: { send(method: string, params: unknown): Promise<unknown> };
   calls: Map<string, number>;
   stylesCalls: number[];
 } {
@@ -33,20 +33,21 @@ function mockCdp(
 
   return {
     cdp: {
-      async send(method: string, params: any) {
+      async send(method: string, params: unknown) {
         bump(method);
+        const args = params as { nodeId: number };
         if (method === 'CSS.getComputedStyleForNode') {
-          stylesCalls.push(params.nodeId);
+          stylesCalls.push(args.nodeId);
           if (opts.failComputed) {
             throw new Error('computed styles unavailable');
           }
-          return { computedStyle: opts.styles?.(params.nodeId) ?? [] };
+          return { computedStyle: opts.styles?.(args.nodeId) ?? [] };
         }
         if (method === 'DOM.getDocument') {
           return { root: opts.tree ?? null };
         }
         if (method === 'DOM.getParentNode') {
-          const parentId = opts.parentOf?.(params.nodeId) ?? null;
+          const parentId = opts.parentOf?.(args.nodeId) ?? null;
           return parentId === null ? {} : { parentId };
         }
         throw new Error(`unexpected CDP call: ${method}`);
@@ -73,15 +74,6 @@ function withSnapAncestor(): MockStyleEntry[] {
     { name: 'overflow', value: 'auto' },
     { name: 'scroll-snap-type', value: 'x mandatory' },
   ];
-}
-
-function withParent(childNodeId: number, parentNodeId: number) {
-  return {
-    nodeId: 1,
-    children: [
-      { nodeId: parentNodeId, children: [{ nodeId: childNodeId, children: [] }] },
-    ],
-  };
 }
 
 test('block container: display block, block parent', async () => {
@@ -213,7 +205,7 @@ test('missing parent when CDP fails: safe defaults instead of a crash', async ()
   });
   // Force the parent lookup to blow up as well.
   const failingCdp = {
-    send: async (method: string, params: any) => {
+    send: async (method: string, params: unknown) => {
       if (method === 'DOM.getDocument' || method === 'DOM.getParentNode') {
         throw new Error('CDP went away');
       }
@@ -367,7 +359,7 @@ test('hasScrollSnapAncestor: false when no ancestor is a scroll-snap container',
     ],
   };
   // Every ancestor has overflow: visible and scroll-snap-type: none.
-  const { cdp } = mockCdp({ styles: (nodeId) => style('block'), tree });
+  const { cdp } = mockCdp({ styles: (_nodeId) => style('block'), tree });
   builder.setDomRoot(tree);
 
   const context = await builder.build(cdp, 21);

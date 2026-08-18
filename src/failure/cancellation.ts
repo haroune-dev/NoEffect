@@ -46,6 +46,10 @@ export function raceCancellation<T>(
     return Promise.reject(new AnalysisCancelledError('Analysis cancelled'));
   }
   return new Promise<T>((resolve, reject) => {
+    // Registered after `rejectCancelled` is defined (its listener) and read
+    // by the promise handlers below — the declare-then-assign shape is
+    // required, prefer-const cannot see through the closures.
+    // eslint-disable-next-line prefer-const
     let subscription: { dispose(): void };
     const rejectCancelled = (): void => {
       subscription.dispose();

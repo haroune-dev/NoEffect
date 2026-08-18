@@ -104,5 +104,5 @@ function formatCssDeclaration(propertyName: string, propertyValue: string): stri
 }
 
 function escapeMarkdown(value: string): string {
-  return value.replace(/([\\`*{}\[\]<>_])/g, '\\$1');
+  return value.replace(/([\\`*{}[\]<>_])/g, '\\$1');
 }

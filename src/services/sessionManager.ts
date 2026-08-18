@@ -1,5 +1,5 @@
 import { logger } from '../utils/logger';
-import { AnalysisResult, AnalysisNamespace, CssIssue } from '../models';
+import { AnalysisResult, CssIssue } from '../models';
 
 /**
  * A recorded global (multi-companion) outcome of one stylesheet (F5). The

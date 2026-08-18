@@ -22,6 +22,7 @@ class Logger {
   init(): void {
     if (!this.channel) {
       // Lazy require: only valid inside the VS Code extension host.
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const vscodeModule = require('vscode') as typeof import('vscode');
       this.channel = vscodeModule.window.createOutputChannel('NoEffect');
       this.startTime = Date.now();

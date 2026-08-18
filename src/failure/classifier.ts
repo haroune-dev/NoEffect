@@ -15,7 +15,6 @@
 
 import {
   AnalysisFailure,
-  FailureCode,
   FailureSeverity,
   FailureSource,
   FAILURE_CODES,

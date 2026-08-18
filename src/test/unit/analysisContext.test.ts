@@ -31,7 +31,7 @@ function htmlFile(project: string, name: string, content: string): string {
   return filePath;
 }
 
-function resolution(htmlPath: string, rank: number): CompanionResolution {
+function resolution(htmlPath: string, _rank: number): CompanionResolution {
   return {
     htmlPath,
     href: 'styles.css',

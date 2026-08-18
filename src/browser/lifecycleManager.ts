@@ -479,9 +479,9 @@ export class LifecycleManager {
     if (!match) throw new Error('Could not parse port from WebSocket URL');
     const debugPort = match[1];
 
-    const targets: any[] = await new Promise((resolve, reject) => {
+    const targets: Array<Record<string, unknown>> = await new Promise((resolve, reject) => {
       http
-        .get(`http://127.0.0.1:${debugPort}/json/list`, (res: any) => {
+        .get(`http://127.0.0.1:${debugPort}/json/list`, (res: http.IncomingMessage) => {
           let data = '';
           res.on('data', (chunk: string) => (data += chunk));
           res.on('end', () => {
@@ -495,7 +495,8 @@ export class LifecycleManager {
         .on('error', reject);
     });
 
-    const pageTarget = targets.find((t) => t.type === 'page');
+    const pageTarget = targets.find((t) => t.type === 'page') as
+      { webSocketDebuggerUrl: string } | undefined;
     if (!pageTarget) throw new Error('No page target found');
     return pageTarget;
   }
@@ -521,8 +522,8 @@ export class LifecycleManager {
     let timedOut = false;
     let targetFrameNavigated = false;
 
-    const onFrameNavigated = (params: any) => {
-      const frameUrl = params?.frame?.url || '';
+    const onFrameNavigated = (params: unknown) => {
+      const frameUrl = (params as { frame?: { url?: string } })?.frame?.url || '';
       if (frameUrl && frameUrl !== 'about:blank') {
         targetFrameNavigated = true;
         logger.info(`[CDP] Frame navigated to target URL: ${frameUrl}`);

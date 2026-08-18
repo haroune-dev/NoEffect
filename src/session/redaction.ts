@@ -54,7 +54,7 @@ export function redact(input: string): string {
     (_m, prefix: string) => `${prefix}REDACTED`
   );
   // Long token blobs (hex/base64-ish) anywhere in the text.
-  out = out.replace(/\b[0-9a-fA-F+\/=]{24,}\b/g, 'REDACTED_TOKEN');
+  out = out.replace(/\b[0-9a-fA-F+=/]{24,}\b/g, 'REDACTED_TOKEN');
   return out;
 }
 

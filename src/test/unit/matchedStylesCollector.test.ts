@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { collectPseudoTypes } from '../../browser/matchedStylesCollector';
+import { normalizeAndDeduplicate } from '../../engine/declarationNormalizer';
 
 /**
  * Unit tests for the pseudo-type collector: it must surface the pseudo
@@ -81,7 +82,6 @@ test('collectMatchedDeclarations: no inline style section produces no inline dec
 });
 
 test('collectMatchedDeclarations: normalizes duplicated inline copies (declared + resolved)', () => {
-  const { normalizeAndDeduplicate } = require('../../engine/declarationNormalizer');
   const payload = {
     inlineStyle: {
       styleSheetId: '5.0',

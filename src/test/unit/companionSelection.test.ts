@@ -21,7 +21,7 @@ import { CompanionResolution } from '../../services/companionResolver';
  * and the freshness probes derive the selection from.
  */
 
-function resolution(htmlPath: string, rank: number): CompanionResolution {
+function resolution(htmlPath: string, _rank: number): CompanionResolution {
   return {
     htmlPath,
     href: 'styles.css',

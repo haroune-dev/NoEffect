@@ -111,17 +111,25 @@ function skipWsAndComments(text: string, i: number): number {
 }
 
 /**
- * Find the offset of the matching closing `}` for the block that opens at
- * `openIdx`. Tracks nested braces, strings, comments and parentheses.
- * Returns `-1` when the block is unbalanced.
+ * Shared CSS scanner state machine (P3-CLEAN-44): walks `text` in
+ * `[from, limit)` skipping strings (with escape handling), comments and —
+ * when `trackParens` — parentheses, invoking `onChar` for every other
+ * significant character. Returns the index of the character on which
+ * `onChar` returned `true`, or `null` when the limit is reached first.
  */
-function findBlockEnd(text: string, openIdx: number): number {
-  let depth = 0;
-  let i = openIdx;
+function scanCss(
+  text: string,
+  from: number,
+  limit: number,
+  trackParens: boolean,
+  onChar: (c: string, i: number) => boolean
+): number | null {
+  let i = from;
+  let parenDepth = 0;
   let inString: string | null = null;
   let inComment = false;
 
-  while (i < text.length) {
+  while (i < limit) {
     const c = text[i];
     const next = text[i + 1];
 
@@ -157,18 +165,48 @@ function findBlockEnd(text: string, openIdx: number): number {
       i++;
       continue;
     }
+    if (trackParens) {
+      if (c === '(') {
+        parenDepth++;
+        i++;
+        continue;
+      }
+      if (c === ')') {
+        if (parenDepth > 0) {
+          parenDepth--;
+        }
+        i++;
+        continue;
+      }
+    }
+    if (parenDepth === 0 && onChar(c, i)) {
+      return i;
+    }
+    i++;
+  }
+
+  return null;
+}
+
+/**
+ * Find the offset of the matching closing `}` for the block that opens at
+ * `openIdx`. Tracks nested braces, strings, comments and parentheses.
+ * Returns `-1` when the block is unbalanced.
+ */
+function findBlockEnd(text: string, openIdx: number): number {
+  let depth = 0;
+  const close = scanCss(text, openIdx, text.length, false, (c) => {
     if (c === '{') {
       depth++;
     } else if (c === '}') {
       depth--;
       if (depth === 0) {
-        return i;
+        return true;
       }
     }
-    i++;
-  }
-
-  return -1;
+    return false;
+  });
+  return close ?? -1;
 }
 
 /**
@@ -177,66 +215,15 @@ function findBlockEnd(text: string, openIdx: number): number {
  * parentheses. Returns `null` when the limit is reached first.
  */
 function scanToStructuralChar(text: string, from: number, limit: number): ScanResult | null {
-  let i = from;
-  let parenDepth = 0;
-  let inString: string | null = null;
-  let inComment = false;
-
-  while (i < limit) {
-    const c = text[i];
-    const next = text[i + 1];
-
-    if (inComment) {
-      if (c === '*' && next === '/') {
-        inComment = false;
-        i += 2;
-        continue;
-      }
-      i++;
-      continue;
+  let token: ScanResult['token'] | null = null;
+  const stop = scanCss(text, from, limit, true, (c) => {
+    if (c === '{' || c === ';' || c === '}') {
+      token = c as ScanResult['token'];
+      return true;
     }
-
-    if (inString) {
-      if (c === '\\') {
-        i += 2;
-        continue;
-      }
-      if (c === inString) {
-        inString = null;
-      }
-      i++;
-      continue;
-    }
-
-    if (c === '/' && next === '*') {
-      inComment = true;
-      i += 2;
-      continue;
-    }
-    if (c === '"' || c === "'") {
-      inString = c;
-      i++;
-      continue;
-    }
-    if (c === '(') {
-      parenDepth++;
-      i++;
-      continue;
-    }
-    if (c === ')') {
-      if (parenDepth > 0) {
-        parenDepth--;
-      }
-      i++;
-      continue;
-    }
-    if (parenDepth === 0 && (c === '{' || c === ';' || c === '}')) {
-      return { token: c, pos: i };
-    }
-    i++;
-  }
-
-  return null;
+    return false;
+  });
+  return stop === null ? null : { token: token as unknown as ScanResult['token'], pos: stop };
 }
 
 /**
@@ -244,66 +231,8 @@ function scanToStructuralChar(text: string, from: number, limit: number): ScanRe
  * and parentheses). Returns `null` when there is none.
  */
 function findFirstColon(text: string, from: number, limit: number): ColonResult | null {
-  let i = from;
-  let parenDepth = 0;
-  let inString: string | null = null;
-  let inComment = false;
-
-  while (i < limit) {
-    const c = text[i];
-    const next = text[i + 1];
-
-    if (inComment) {
-      if (c === '*' && next === '/') {
-        inComment = false;
-        i += 2;
-        continue;
-      }
-      i++;
-      continue;
-    }
-
-    if (inString) {
-      if (c === '\\') {
-        i += 2;
-        continue;
-      }
-      if (c === inString) {
-        inString = null;
-      }
-      i++;
-      continue;
-    }
-
-    if (c === '/' && next === '*') {
-      inComment = true;
-      i += 2;
-      continue;
-    }
-    if (c === '"' || c === "'") {
-      inString = c;
-      i++;
-      continue;
-    }
-    if (c === '(') {
-      parenDepth++;
-      i++;
-      continue;
-    }
-    if (c === ')') {
-      if (parenDepth > 0) {
-        parenDepth--;
-      }
-      i++;
-      continue;
-    }
-    if (parenDepth === 0 && c === ':') {
-      return { pos: i };
-    }
-    i++;
-  }
-
-  return null;
+  const stop = scanCss(text, from, limit, true, (c) => c === ':');
+  return stop === null ? null : { pos: stop };
 }
 
 class PositionMap {

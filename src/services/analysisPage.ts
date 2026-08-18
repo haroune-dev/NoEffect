@@ -62,11 +62,6 @@ export function unqueryableReason(selector: string): string | null {
   return null;
 }
 
-/** Whether a whole rule selector can be queried against the wrapper page. */
-function isQueryableSelector(selector: string): boolean {
-  return unqueryableReason(selector) === null;
-}
-
 /** A dropped selector part with the deterministic reason it was dropped. */
 export interface DroppedSelector {
   selector: string;

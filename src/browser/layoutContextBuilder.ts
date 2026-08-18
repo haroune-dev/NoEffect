@@ -30,7 +30,7 @@ import { logger } from '../utils/logger';
 
 /** Minimal shape of the CDP session the builder talks to. */
 export interface CdpSession {
-  send(method: string, params?: unknown): Promise<any>;
+  send(method: string, params?: unknown): Promise<unknown>;
 }
 
 /**
@@ -339,9 +339,11 @@ export class LayoutContextBuilder {
       return cached;
     }
 
-    let styles = new Map<string, string>();
+    const styles = new Map<string, string>();
     try {
-      const response = await cdp.send('CSS.getComputedStyleForNode', { nodeId });
+      const response = (await cdp.send('CSS.getComputedStyleForNode', { nodeId })) as {
+        computedStyle?: unknown;
+      };
       const entries = response?.computedStyle;
       if (Array.isArray(entries)) {
         for (const entry of entries) {
@@ -376,7 +378,9 @@ export class LayoutContextBuilder {
     // The node is not in the known tree (e.g. a detached node) — ask CDP
     // directly. A null parentId means the node has no parent (document root).
     try {
-      const response = await cdp.send('DOM.getParentNode', { nodeId });
+      const response = (await cdp.send('DOM.getParentNode', { nodeId })) as {
+        parentId?: number;
+      };
       return response?.parentId ?? null;
     } catch (err) {
       logger.debug(
@@ -398,7 +402,9 @@ export class LayoutContextBuilder {
 
     if (!root) {
       try {
-        const response = await cdp.send('DOM.getDocument', { depth: -1 });
+        const response = (await cdp.send('DOM.getDocument', { depth: -1 })) as {
+          root?: unknown;
+        };
         root = response?.root;
       } catch (err) {
         logger.debug(

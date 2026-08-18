@@ -509,8 +509,6 @@ test('analyzeHtmlFile: an HTML content change refreshes the page but keeps the r
   const analyzer = new CdpAnalyzer({ globalOutcomeStore: store });
   await analyzer.analyzeFixture(INACTIVE_FIXTURE, '.non-flex', Date.now());
 
-  const before = defaultLifecycle.getStats();
-
   const firstRun = await analyzer.analyzeHtmlFile(htmlFilePath, Date.now());
   const afterFirst = defaultLifecycle.getStats();
   assert.equal(store.getIssuesForFile(cssFilePath)?.length, 1, 'the first run ensures the global outcome');

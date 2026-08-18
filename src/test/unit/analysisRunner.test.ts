@@ -11,6 +11,7 @@ import {
 import { AnalysisProvider } from '../../services/analyzer';
 import { RunMetrics } from '../../failure/outcome';
 import { AnalysisCancelledError, ChromiumNotFoundError, DevServerPortBusyError } from '../../failure/errors';
+import { RETRY_POLICY } from '../../session/policy';
 import { CancellationTokenLike, neverCancelled } from '../../failure/cancellation';
 import { AnalysisFailure, FAILURE_CODES } from '../../failure/model';
 import { CssIssue } from '../../models';
@@ -467,7 +468,7 @@ test('the full_analysis policy bounds a hung run into an ANALYSIS_TIMEOUT outcom
 
   // The policy table is the single source of truth; the only sanctioned
   // mutation point is tests, so shrink the budget for this check.
-  const policy = require('../../session/policy').RETRY_POLICY as { full_analysis: { timeoutMs: number } };
+  const policy = RETRY_POLICY;
   const original = policy.full_analysis.timeoutMs;
   policy.full_analysis.timeoutMs = 50;
 

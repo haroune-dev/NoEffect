@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as crypto from 'crypto';
-import { mappingCache, mappingKeyFor, batchKeys } from '../../cache/mappingCache';
+import { mappingCache, batchKeys } from '../../cache/mappingCache';
 import { CssAstParser } from '../../parser/cssAst';
 import { MatchedCssDeclaration } from '../../engine/inactivePropertyEngine';
 

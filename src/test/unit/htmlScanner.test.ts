@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { scanHtmlForCss, HtmlStyleAttribute, HtmlStyleBlock, CssFragmentPosition } from '../../parser/htmlScanner';
+import { scanHtmlForCss, CssFragmentPosition } from '../../parser/htmlScanner';
 
 /**
  * Unit tests for the embedded-CSS HTML scanner: it must find `<style>`

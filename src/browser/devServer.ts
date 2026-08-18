@@ -64,7 +64,7 @@ export class DevServer {
     throw lastError;
   }
 
-  private startCtx(fixturePath: string): { server: http.Server; listening: Promise<number> } {
+  private startCtx(_fixturePath: string): { server: http.Server; listening: Promise<number> } {
     const server = http.createServer((req, res) => this.handleRequest(req, res));
     server.on('connection', (socket: net.Socket) => {
       this.sockets.add(socket);

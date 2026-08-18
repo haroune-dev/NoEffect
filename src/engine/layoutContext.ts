@@ -466,7 +466,11 @@ export function createLayoutContext(init: LayoutContextInit): LayoutContext {
     for (const [type, facts] of init.pseudoBoxFacts) {
       const normalized = type.trim().toLowerCase().replace(/^::/, '');
       if (normalized.length > 0) {
-        pseudoBoxFacts.set(normalized, facts);
+        // The map copy is not enough: the VALUE objects are shared
+        // references from the caller. Copy (and freeze) each one so the
+        // frozen context cannot leak mutations back to the collector
+        // (P3-CLEAN-47).
+        pseudoBoxFacts.set(normalized, Object.freeze({ ...facts }));
       }
     }
     Object.freeze(pseudoBoxFacts);

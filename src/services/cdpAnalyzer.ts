@@ -38,7 +38,7 @@ import {
   selectCompanionsForAnalysis,
 } from '../engine/companionSelection';
 import { CssGlobalOutcomeStore } from './sessionManager';
-import { mappingCache, mappingKeyFor, batchKeys } from '../cache/mappingCache';
+import { mappingCache, batchKeys } from '../cache/mappingCache';
 import {
   htmlFragmentCache,
   embeddedParseCache,
@@ -47,6 +47,7 @@ import {
   EmbeddedCssParse,
 } from '../cache/embeddedCssCache';
 import { defaultLifecycle } from '../browser/lifecycleManager';
+import { CdpClient } from '../browser/cdpClient';
 import { sleep } from '../session/timing';
 import { LayoutContextBuilder } from '../browser/layoutContextBuilder';
 import {
@@ -1062,7 +1063,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
     fixturePath: string,
     targetUrl: string | null,
     forceRefresh: boolean,
-    run: (cdp: any, token?: CancellationTokenLike) => Promise<CssIssue[]>,
+    run: (cdp: CdpClient, token?: CancellationTokenLike) => Promise<CssIssue[]>,
     token?: CancellationTokenLike
   ): Promise<CssIssue[]> {
     return this.withSessionPass(fixturePath, targetUrl, forceRefresh, run, token);
@@ -1079,7 +1080,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
     fixturePath: string,
     targetUrl: string | null,
     forceRefresh: boolean,
-    run: (cdp: any, token?: CancellationTokenLike) => Promise<T>,
+    run: (cdp: CdpClient, token?: CancellationTokenLike) => Promise<T>,
     token?: CancellationTokenLike
   ): Promise<T> {
     throwIfCancelled(token);
@@ -1151,7 +1152,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
    * be mis-mapped to a same-named stylesheet declaration.
    */
   private async inspectSelectors(
-    cdp: any,
+    cdp: CdpClient,
     selectors: string[],
     stylesheets: LocalStylesheet[],
     options: { syntheticParents?: boolean; inline?: InlineAnalysis; crossRuleCascade?: boolean } = {},
@@ -1170,7 +1171,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
    * merged-semantics step after all passes.
    */
   private async inspectSelectorsForVerdicts(
-    cdp: any,
+    cdp: CdpClient,
     selectors: string[],
     stylesheets: LocalStylesheet[],
     options: { syntheticParents?: boolean; inline?: InlineAnalysis; crossRuleCascade?: boolean } = {},
@@ -1198,7 +1199,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
    * bookkeeps each selector exactly once after all passes.
    */
   private async inspectSelectorsCore(
-    cdp: any,
+    cdp: CdpClient,
     selectors: string[],
     stylesheets: LocalStylesheet[],
     options: { syntheticParents?: boolean; inline?: InlineAnalysis; deferSelectorBookkeeping?: boolean; crossRuleCascade?: boolean } = {},
@@ -1214,7 +1215,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
     // node ids) may change between runs, so stale state is never reused.
     this.layoutContextBuilder.reset();
 
-    const domTree = await cdp.send('DOM.getDocument', { depth: -1 });
+    const domTree = (await cdp.send('DOM.getDocument', { depth: -1 })) as { root?: unknown };
     throwIfCancelled(token);
     logger.info('[CDP] DOM frontend tree initialized for the loaded document');
     // Hand the already-fetched tree to the builder so parent detection
@@ -1603,22 +1604,29 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
   ): Array<{ nodeId: number; fragmentIndex: number }> {
     const found: Array<{ nodeId: number; value: string }> = [];
 
-    const walk = (node: any): void => {
+    const walk = (node: unknown): void => {
       if (!node || typeof node !== 'object') {
         return;
       }
-      if (typeof node.nodeId === 'number' && Array.isArray(node.attributes)) {
-        for (let i = 0; i + 1 < node.attributes.length; i += 2) {
-          const name = node.attributes[i];
+      const record = node as { nodeId?: unknown; attributes?: unknown; children?: unknown };
+      if (typeof record.nodeId === 'number' && Array.isArray(record.attributes)) {
+        const attributes = record.attributes as unknown[];
+        for (let i = 0; i + 1 < attributes.length; i += 2) {
+          const name = attributes[i];
           if (typeof name === 'string' && name.toLowerCase() === 'style') {
-            const value = node.attributes[i + 1];
-            found.push({ nodeId: node.nodeId, value: typeof value === 'string' ? value : '' });
+            const value = attributes[i + 1];
+            found.push({
+              nodeId: record.nodeId as number,
+              value: typeof value === 'string' ? value : '',
+            });
             break;
           }
         }
       }
-      for (const child of node.children ?? []) {
-        walk(child);
+      if (Array.isArray(record.children)) {
+        for (const child of record.children as unknown[]) {
+          walk(child);
+        }
       }
     };
     walk(domRoot);
@@ -1651,7 +1659,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
    * already inspected through the selector flow.
    */
   private async gatherInlineFacts(
-    cdp: any,
+    cdp: CdpClient,
     nodeId: number
   ): Promise<{ declarations: MatchedCssDeclaration[]; declaredDisplay?: string }> {
     const rawMatched = await cdp.send('CSS.getMatchedStylesForNode', { nodeId });
@@ -1762,14 +1770,16 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
    * Locate a DOM node for a selector via Runtime.evaluate + DOM.requestNode.
    * Returns null (with a diagnostic) when the selector matches nothing.
    */
-  private async locateNode(cdp: any, selector: string): Promise<{ nodeId: number } | null> {
+  private async locateNode(cdp: CdpClient, selector: string): Promise<{ nodeId: number } | null> {
     logger.info(`[CDP] Locating ${selector} via Runtime.evaluate...`);
 
-    const findResult = await cdp.send('Runtime.evaluate', {
+    const findResult = (await cdp.send('Runtime.evaluate', {
       expression: `document.querySelector(${JSON.stringify(selector)})`,
       // Return a reference (objectId) to the DOM node, not a JSON value
       returnByValue: false,
-    });
+    })) as {
+      result?: { type?: string; subtype?: string; objectId?: string };
+    };
 
     const remoteObject = findResult.result;
     const hasNode = remoteObject && remoteObject.type === 'object' && remoteObject.subtype === 'node' && remoteObject.objectId;
@@ -1786,9 +1796,9 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
     logger.info(`[CDP] Runtime.evaluate found ${selector} element`);
 
     // Bridge the JS object to a CDP nodeId
-    const { nodeId } = await cdp.send('DOM.requestNode', {
+    const { nodeId } = (await cdp.send('DOM.requestNode', {
       objectId: remoteObject.objectId,
-    });
+    })) as { nodeId: number };
 
     logger.info(`[CDP] Mapped ${selector} to nodeId: ${nodeId}`);
     return { nodeId };
@@ -1802,7 +1812,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
    * understand CDP layout information (PR6 Phase 1).
    */
   private async gatherNodeFacts(
-    cdp: any,
+    cdp: CdpClient,
     selector: string,
     node: { nodeId: number },
     crossRuleCascade: boolean = true
@@ -1813,7 +1823,9 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
     declaredDisplay?: string;
   }> {
     // ── Step: collect matched declarations (browser facts only) ──
-    const rawMatched = await cdp.send('CSS.getMatchedStylesForNode', { nodeId: node.nodeId });
+    const rawMatched = (await cdp.send('CSS.getMatchedStylesForNode', {
+      nodeId: node.nodeId,
+    })) as { matchedCSSRules?: Array<{ declaration?: unknown[] }> };
     // Bounded debug record — NEVER the raw CDP payload: `getMatchedStylesForNode`
     // returns every matching rule across stylesheets + UA defaults, and
     // writing a multi-hundred-KB object to the output channel stalls the
@@ -1865,7 +1877,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
    * against the origin element's context).
    */
   private async fetchPseudoBoxStyles(
-    cdp: any,
+    cdp: CdpClient,
     selector: string,
     pseudoTypes: readonly string[]
   ): Promise<ReadonlyMap<string, PseudoBoxFacts>> {
@@ -1892,20 +1904,21 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
     })()`;
 
     try {
-      const response = await cdp.send('Runtime.evaluate', {
+      const response = (await cdp.send('Runtime.evaluate', {
         expression,
         returnByValue: true,
-      });
+      })) as { result?: { value?: unknown } };
       const value = response?.result?.value;
       if (value && typeof value === 'object') {
-        for (const [type, styles] of Object.entries(value as Record<string, any>)) {
+        for (const [type, styles] of Object.entries(value as Record<string, unknown>)) {
           if (styles && typeof styles === 'object') {
+            const facts = styles as Record<string, unknown>;
             factsByPseudo.set(type, {
-              display: String(styles.display ?? ''),
-              float: String(styles.float ?? ''),
-              position: String(styles.position ?? ''),
+              display: String(facts.display ?? ''),
+              float: String(facts.float ?? ''),
+              position: String(facts.position ?? ''),
               computedContent:
-                typeof styles.computedContent === 'string' ? styles.computedContent : undefined,
+                typeof facts.computedContent === 'string' ? facts.computedContent : undefined,
             });
           }
         }

@@ -1,10 +1,9 @@
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import {
-  CompanionResolution,
   compareCompanions,
   dirDistance,
   extractLinkedHrefs,
@@ -19,6 +18,16 @@ import {
 
 let root: string;
 
+after(() => {
+  // Every `layout()` leaves a fresh root in os.tmpdir(); the resolver's
+  // ancestor-chain search reaches the tmpdir itself, so a leftover root
+  // from a PREVIOUS run (with an html that basename-pairs) breaks later
+  // runs. Always clean up the module-scoped root after the suite.
+  if (root) {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 function layout(): string {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'noeffect-companion-'));
   return root;
@@ -31,7 +40,7 @@ function write(filePath: string, content: string): string {
   return abs;
 }
 
-function page(cssHref: string, name = 'index.html'): string {
+function page(cssHref: string): string {
   return `<!DOCTYPE html><html><head><link rel="stylesheet" href="${cssHref}"></head><body></body></html>`;
 }
 
@@ -310,7 +319,7 @@ test('deployment-style links: a base-relative URL that does not exist on disk pa
     '<base href="/"><link rel="stylesheet" href="/test/manual-multipage-stress/css/styles.css">'
   );
 
-  const resolved = (await resolveCompanion({ cssFilePath: css }))!;
+  const resolved = (await resolveCompanion({ cssFilePath: css, workspaceFolderProvider: () => root }))!;
   assert.equal(resolved.htmlPath, home, 'the page pairs with the analyzed stylesheet by basename');
   assert.equal(resolved.kind, 'root-relative');
 });
@@ -323,7 +332,10 @@ test('deployment-style links: a mismatched basename never pairs', async () => {
     '<base href="/"><link rel="stylesheet" href="/assets/other.css">'
   );
 
-  assert.equal(await resolveCompanion({ cssFilePath: css }), null);
+  assert.equal(
+    await resolveCompanion({ cssFilePath: css, workspaceFolderProvider: () => root }),
+    null
+  );
 });
 
 test('deployment-style links: a URL that resolves to an EXISTING file never falls back', async () => {
@@ -335,7 +347,11 @@ test('deployment-style links: a URL that resolves to an EXISTING file never fall
     '<base href="/"><link rel="stylesheet" href="/other/styles.css">'
   );
 
-  assert.equal(await resolveCompanion({ cssFilePath: css }), null, 'exact URL resolution is authoritative');
+  assert.equal(
+    await resolveCompanion({ cssFilePath: css, workspaceFolderProvider: () => root }),
+    null,
+    'exact URL resolution is authoritative'
+  );
 });
 
 test('broken relative links never pair by basename (the fallback is deployment-kind only)', async () => {

@@ -198,6 +198,9 @@
     "test:smoke:all": "npm run compile && npm run build && node out/test/smoke/runSmoke.js 1.85.0 && node out/test/smoke/runSmoke.js stable",
     "test:pack": "npm run compile && npm run build && node out/test/smoke/runSmokeVsix.js"
   },
+  "dependencies": {
+    "ws": "^8.21.1"
+  },
   "devDependencies": {
     "@types/node": "^18.19.0",
     "@types/vscode": "1.85.0",
@@ -208,7 +211,6 @@
     "@vscode/vsce": "^3.9.2",
     "esbuild": "^0.28.1",
     "eslint": "^8.56.0",
-    "typescript": "^5.3.0",
-    "ws": "^8.21.1"
+    "typescript": "^5.3.0"
   }
 }

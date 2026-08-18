@@ -5,8 +5,8 @@ export class CdpClient {
   private connected: boolean = false;
   private ws: WebSocket | null = null;
   private messageId: number = 1;
-  private pendingRequests: Map<number, { resolve: (val: any) => void, reject: (err: any) => void }> = new Map();
-  private eventListeners: Map<string, Array<(params: any) => void>> = new Map();
+  private pendingRequests: Map<number, { resolve: (val: unknown) => void, reject: (err: unknown) => void }> = new Map();
+  private eventListeners: Map<string, Array<(params: unknown) => void>> = new Map();
   private connectionClosedListeners: Array<() => void> = [];
 
   /**
@@ -127,7 +127,7 @@ export class CdpClient {
   /**
    * Send a CDP command and return the result.
    */
-  async send(method: string, params?: Record<string, unknown>): Promise<any> {
+  async send(method: string, params?: Record<string, unknown>): Promise<unknown> {
     if (!this.connected || !this.ws) {
       throw new Error('CDP Client is not connected');
     }
@@ -144,7 +144,7 @@ export class CdpClient {
   /**
    * Listen to a specific CDP event.
    */
-  on(method: string, listener: (params: any) => void): void {
+  on(method: string, listener: (params: unknown) => void): void {
     let listeners = this.eventListeners.get(method);
     if (!listeners) {
       listeners = [];
@@ -156,7 +156,7 @@ export class CdpClient {
   /**
    * Remove a specific CDP event listener.
    */
-  off(method: string, listener: (params: any) => void): void {
+  off(method: string, listener: (params: unknown) => void): void {
     const listeners = this.eventListeners.get(method);
     if (listeners) {
       const index = listeners.indexOf(listener);

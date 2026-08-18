@@ -131,8 +131,6 @@ export interface LinkedHrefs {
  * empty links are ignored.
  */
 export function extractLinkedHrefs(html: string): LinkedHrefs {
-  const hrefs: string[] = [];
-
   const baseMatch = html.match(/<base\b[^>]*>/gi) ?? [];
   for (const tag of baseMatch) {
     const attrs = extractAttrs(tag);
