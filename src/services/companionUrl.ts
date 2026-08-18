@@ -79,7 +79,10 @@ export function fromServedPath(serverRoot: string, requestUrl: string): string |
 
   const root = path.resolve(serverRoot);
   const candidate = path.resolve(root, relative);
-  if (candidate !== root && !candidate.startsWith(root + path.sep)) {
+  // `root + path.sep` becomes `//` for the filesystem root; a `serverRoot`
+  // of `/` must contain everything, not reject every request (P3-LOG-33).
+  const containmentPrefix = root === path.sep ? root : root + path.sep;
+  if (candidate !== root && !candidate.startsWith(containmentPrefix)) {
     return null;
   }
   return candidate;

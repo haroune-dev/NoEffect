@@ -196,14 +196,14 @@ export function collectCoverage(signals: CoverageSignals): CoverageData {
     selectorStatus: signals.selectorStatus,
     selectorSkipReason: signals.selectorSkipReason ?? null,
     runStatus: signals.runStatus,
-    counts: signals.counts,
+    counts: { ...signals.counts },
   };
 
   return {
     overall: {
       mode: signals.mode,
       modeReason: signals.modeReason ?? defaultModeReason(signals.mode),
-      counts: signals.counts,
+      counts: { ...signals.counts },
     },
     currentRun,
     ...(signals.companions ? { companions: signals.companions } : {}),

@@ -193,16 +193,21 @@ export function mergePassOutcomes(outcomes: readonly PassOutcome[]): Map<string,
       }
       if (passVerdict.verdict === 'I') {
         inactiveCount++;
-        if (passVerdict.issue && issueSource === null) {
+        // The issue of a merged `I` comes from the HIGHEST-RANKED pass
+        // that issued it — rank, not input order (P3-LOG-32).
+        if (
+          passVerdict.issue &&
+          (issueSource === null || outcome.companionRank < issueSource.rank)
+        ) {
           issueSource = { rank: outcome.companionRank, issue: passVerdict.issue };
         }
-      } else if (passVerdict.verdict === 'A' && firstARank === null) {
+      } else if (passVerdict.verdict === 'A' && (firstARank === null || outcome.companionRank < firstARank)) {
         firstARank = outcome.companionRank;
       }
       verdict = mergeVerdicts(verdict, passVerdict.verdict);
     }
 
-if (verdict === 'bottom') {
+    if (verdict === 'bottom') {
         // No usable semantic evidence in ANY successful pass: the
         // declaration never materializes (⊥ is the identity).
         continue;

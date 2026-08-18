@@ -1264,7 +1264,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
           pseudoBoxFacts: facts.pseudoBoxFacts,
         }
       );
-      logger.info(`[CDP] Computed display for ${selector}: ${layout.display}`);
+      logger.debug(`[CDP] Computed display for ${selector}: ${layout.display}`);
 
       // Inline `style=""` declarations of selector-matched elements are
       // inspected in the dedicated inline flow below (they map back into
@@ -1274,7 +1274,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
       allDeclarations.push(...ruleDeclarations);
 
       for (const declaration of ruleDeclarations) {
-        logger.info(
+        logger.debug(
           `[InactiveEngine] Inspecting ${declaration.propertyName} ` +
           `with display=${layout.display}, parent=${layout.parentDisplay}`
         );
@@ -1286,10 +1286,10 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
         });
 
         if (result) {
-          logger.info(`[InactiveEngine] Inactive (${selector}): ${result.reasonCode}`);
+          logger.debug(`[InactiveEngine] Inactive (${selector}): ${result.reasonCode}`);
           inactive.push({ declaration, result });
         } else {
-          logger.info(
+          logger.debug(
             `[InactiveEngine] Active: ${declaration.propertyName} is valid in display=${layout.display}`
           );
           // The declaration is provably effective for THIS node — its
@@ -1490,7 +1490,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
         };
 
         for (const declaration of facts.declarations) {
-          logger.info(
+          logger.debug(
             `[InactiveEngine] Inspecting inline ${declaration.propertyName} ` +
             `with display=${layout.display}, parent=${layout.parentDisplay}`
           );
@@ -1500,13 +1500,13 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
             layout,
           });
           if (!result) {
-            logger.info(
+            logger.debug(
               `[InactiveEngine] Active: inline ${declaration.propertyName} is valid in display=${layout.display}`
             );
             continue;
           }
 
-          logger.info(`[InactiveEngine] Inactive: ${result.reasonCode}`);
+          logger.debug(`[InactiveEngine] Inactive: ${result.reasonCode}`);
           const occurrenceKey = `${declaration.propertyName}|${declaration.propertyValue}`;
           const occurrence = occurrences.get(occurrenceKey) ?? 0;
           occurrences.set(occurrenceKey, occurrence + 1);
@@ -1771,7 +1771,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
    * Returns null (with a diagnostic) when the selector matches nothing.
    */
   private async locateNode(cdp: CdpClient, selector: string): Promise<{ nodeId: number } | null> {
-    logger.info(`[CDP] Locating ${selector} via Runtime.evaluate...`);
+    logger.debug(`[CDP] Locating ${selector} via Runtime.evaluate...`);
 
     const findResult = (await cdp.send('Runtime.evaluate', {
       expression: `document.querySelector(${JSON.stringify(selector)})`,
@@ -1793,14 +1793,14 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
       return null;
     }
 
-    logger.info(`[CDP] Runtime.evaluate found ${selector} element`);
+    logger.debug(`[CDP] Runtime.evaluate found ${selector} element`);
 
     // Bridge the JS object to a CDP nodeId
     const { nodeId } = (await cdp.send('DOM.requestNode', {
       objectId: remoteObject.objectId,
     })) as { nodeId: number };
 
-    logger.info(`[CDP] Mapped ${selector} to nodeId: ${nodeId}`);
+    logger.debug(`[CDP] Mapped ${selector} to nodeId: ${nodeId}`);
     return { nodeId };
   }
 

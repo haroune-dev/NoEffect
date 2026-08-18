@@ -63,12 +63,16 @@ export function normalizeAndDeduplicate(
 
   // ── Step 2: deduplicate ranged declarations ──
   const result: MatchedCssDeclaration[] = [];
+  // rangedKey → index into `result`; O(1) dedup instead of the O(n²)
+  // findIndex scan with re-hashed keys per comparison (P3-PERF-39).
+  const rangedIndexByKey = new Map<string, number>();
 
   for (const d of ranged) {
     const key = rangedKey(d);
-    const existingIndex = result.findIndex((r) => rangedKey(r) === key);
+    const existingIndex = rangedIndexByKey.get(key);
 
-    if (existingIndex === -1) {
+    if (existingIndex === undefined) {
+      rangedIndexByKey.set(key, result.length);
       result.push(d);
       continue;
     }

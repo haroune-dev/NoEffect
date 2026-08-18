@@ -95,8 +95,22 @@ export class DevServer {
     // Virtual pages (generated analysis wrappers) are served first and
     // never touch the filesystem.
     if (requestUrl.startsWith(DevServer.VIRTUAL_PREFIX)) {
-      const name = requestUrl.slice(DevServer.VIRTUAL_PREFIX.length);
-      const content = this.virtualFiles.get(name);
+      // Browser-normalized requests may strip a `?query`/`#fragment` or
+      // carry the percent-DECODED name while the registry holds the
+      // encoded form (P3-LOG-34) — try the exact name first, then the
+      // decoded one.
+      const name = requestUrl
+        .slice(DevServer.VIRTUAL_PREFIX.length)
+        .split('?')[0]
+        .split('#')[0];
+      let content = this.virtualFiles.get(name);
+      if (content === undefined) {
+        try {
+          content = this.virtualFiles.get(decodeURIComponent(name));
+        } catch {
+          content = undefined;
+        }
+      }
       if (content !== undefined) {
         res.writeHead(200, {
           'Content-Type': 'text/html',

@@ -272,18 +272,20 @@ export class BrowserDetector {
     return new Promise((resolve) => {
       let settled = false;
       let child: ChildProcess | null = null;
+      let cancelSub: { dispose(): void } | undefined;
 
       const finish = (usable: boolean) => {
         if (!settled) {
           settled = true;
           clearTimeout(timer);
+          cancelSub?.dispose();
           child?.kill();
           resolve(usable);
         }
       };
 
       const timer = setTimeout(() => finish(false), this.versionTimeoutMs);
-      token?.onCancellationRequested(() => finish(false));
+      cancelSub = token?.onCancellationRequested(() => finish(false));
 
       try {
         child = this.spawnFn(executablePath, ['--version'], {

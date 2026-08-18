@@ -51,8 +51,13 @@ export class WatchService {
 
   /**
    * Check if the file is a CSS or HTML file that should be monitored.
+   * Non-`file` schemes (git:, virtual, untitled) never have a meaningful
+   * fsPath and must not fire re-analysis (P3-LOG-26).
    */
   private isRelevantFile(uri: vscode.Uri): boolean {
+    if (uri.scheme !== 'file') {
+      return false;
+    }
     const fsPath = uri.fsPath.toLowerCase();
     return fsPath.endsWith('.css') || fsPath.endsWith('.html') || fsPath.endsWith('.htm');
   }

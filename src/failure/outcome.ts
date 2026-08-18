@@ -175,7 +175,7 @@ export function buildOutcome(input: OutcomeBuildInput): AnalysisOutcome {
  */
 function resolveMode(input: OutcomeBuildInput): { mode: AnalysisMode; reason: string } {
   if (input.mode) {
-    return { mode: input.mode, reason: input.modeReason ?? 'full analysis' };
+    return { mode: input.mode, reason: input.modeReason ?? defaultModeReason(input.mode) };
   }
 
   const failures = [...(input.errors ?? []), ...(input.warnings ?? []), ...(input.skipped ?? [])];
@@ -203,6 +203,22 @@ function resolveMode(input: OutcomeBuildInput): { mode: AnalysisMode; reason: st
 
 function skippedReasonsFor(input: OutcomeBuildInput): string | undefined {
   return input.metrics.skippedReasons[0] ?? input.skippedReasons?.[0];
+}
+
+/**
+ * Neutral fallback reason for an EXPLICIT mode without a modeReason — a
+ * `failed`/`limited` run must never masquerade as a full analysis
+ * (P3-LOG-30).
+ */
+function defaultModeReason(mode: AnalysisMode): string {
+  switch (mode) {
+    case 'active':
+      return 'all target selectors were inspected';
+    case 'limited':
+      return 'some selectors could not be inspected';
+    case 'failed':
+      return 'the run did not complete';
+  }
 }
 
 /**
