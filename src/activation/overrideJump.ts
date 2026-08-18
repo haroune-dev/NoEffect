@@ -1,6 +1,6 @@
 /**
  * Interactive jump-and-flash for overridden CSS declarations
- * (`noeffect.jumpAndHighlight`).
+ * (`noEffect.jumpAndHighlight`).
  *
  * The hover tooltip of an overridden declaration embeds a trusted command
  * link carrying `{ line, character, length, propertyName }` (1-based
@@ -59,7 +59,7 @@ export class OverrideJumpController {
 
   constructor(private readonly decorationManager: DecorationManager) {}
 
-  /** Entry point for the `noeffect.jumpAndHighlight` command. */
+  /** Entry point for the `noEffect.jumpAndHighlight` command. */
   handle(payload: unknown): void {
     const target = parseJumpPayload(payload);
     if (!target) {

@@ -11,7 +11,7 @@ export const COMMAND_IDS = {
   diagnoseSetup: 'noEffect.diagnoseSetup',
   restartAnalysisSession: 'noEffect.restartAnalysisSession',
   clearCache: 'noEffect.clearCache',
-  jumpAndHighlight: 'noeffect.jumpAndHighlight',
+  jumpAndHighlight: 'noEffect.jumpAndHighlight',
 } as const;
 
 /** VS Code context keys exposed for `when` clauses (safe false defaults). */

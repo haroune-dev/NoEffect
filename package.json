@@ -81,14 +81,14 @@
         "title": "NoEffect: Clear Cache"
       },
       {
-        "command": "noeffect.jumpAndHighlight",
+        "command": "noEffect.jumpAndHighlight",
         "title": "NoEffect: Jump To Overriding Declaration"
       }
     ],
     "menus": {
       "commandPalette": [
         {
-          "command": "noeffect.jumpAndHighlight",
+          "command": "noEffect.jumpAndHighlight",
           "when": "false"
         }
       ]

@@ -88,7 +88,7 @@ const REQUIRED_COMMANDS: readonly string[] = [
   'noEffect.showOutputLogs',
   'noEffect.restartAnalysisSession',
   'noEffect.clearCache',
-  'noeffect.jumpAndHighlight',
+  'noEffect.jumpAndHighlight',
 ];
 
 /** Documented mapping (audit report): VS Code 1.85.x ships Electron 25 / Node 18.15.x. */

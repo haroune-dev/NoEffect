@@ -355,7 +355,7 @@ export function activateExtension(context: vscode.ExtensionContext): vscode.Disp
 
   // ── Interactive override jump (hover command link) ──
   // The hover tooltip of an overridden declaration embeds a trusted
-  // command link to `noeffect.jumpAndHighlight`. The controller owns the
+  // command link to `noEffect.jumpAndHighlight`. The controller owns the
   // single-flash AND single-badge invariants: one active highlight + one
   // transient `→|` winner gutter badge, both cleared on the next
   // selection change after the jump and on editor/document close or

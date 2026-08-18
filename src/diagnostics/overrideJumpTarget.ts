@@ -36,7 +36,7 @@ export interface OverrideJumpTarget {
 }
 
 /** Command id embedded in the hover link (kept in one place, like COMMAND_IDS). */
-export const JUMP_AND_HIGHLIGHT_COMMAND = 'noeffect.jumpAndHighlight';
+export const JUMP_AND_HIGHLIGHT_COMMAND = 'noEffect.jumpAndHighlight';
 
 /** Validate a target payload: integer numbers, 1-based line/character. */
 export function isValidJumpTarget(target: unknown): target is OverrideJumpTarget {

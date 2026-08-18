@@ -38,7 +38,7 @@ test('buildOverrideHoverMarkdown: emits the specified sentence + trusted jump li
     'no arrow adornment of any kind in the link label'
   );
   assert.ok(
-    md.includes(`(command:noeffect.jumpAndHighlight?${encodeJumpArgs(TARGET)})`),
+    md.includes(`(command:noEffect.jumpAndHighlight?${encodeJumpArgs(TARGET)})`),
     'the link carries the encoded jump arguments'
   );
 });

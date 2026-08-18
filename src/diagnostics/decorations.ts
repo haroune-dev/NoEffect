@@ -30,7 +30,7 @@ interface IconHoverEntry {
  *      after the CSS declaration with a hover tooltip explaining the issue.
  *   3. **Winning gutter decoration** — the transient `→|` badge shown in
  *      the glyph margin of the winning declaration while a
- *      `noeffect.jumpAndHighlight` navigation is active. It is NEVER part
+ *      `noEffect.jumpAndHighlight` navigation is active. It is NEVER part
  *      of the static analysis pass: no badge is rendered when a file is
  *      opened or analyzed, and the jump controller dismisses it on the
  *      next selection change (see OverrideJumpController).
@@ -360,7 +360,7 @@ export class DecorationManager {
   /**
    * Show the TRANSIENT override-winner gutter badge (`→|`) on one range.
    *
-   * Triggered exclusively by `noeffect.jumpAndHighlight` (the hover link
+   * Triggered exclusively by `noEffect.jumpAndHighlight` (the hover link
    * on an overridden declaration) — never by the static analysis pass.
    * Any previously applied transient badge is cleared first, so repeated
    * jumps can never stack or orphan badges. No-op before
