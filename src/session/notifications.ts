@@ -3,7 +3,7 @@
  *
  * The ONLY module that turns a failure code into a user-facing message and
  * suggested actions, and the ONLY place that decides whether a failure
- * deserves a notification (v.s. status + output channel only).
+ * deserves a notification (vs. status + output channel only).
  *
  * Allow-list policy (respecting the Phase 4 contract):
  *  - routine recovery / self-healing events are NEVER notified — status bar

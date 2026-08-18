@@ -464,7 +464,7 @@ export class DecorationManager {
         md.appendMarkdown(buildOverrideHoverMarkdown(jumpTargetFromLocation(overrideTarget, issue.propertyName)));
         hasCommandLink = true;
       } else {
-        // Prefer the browser/analyser's detailed explanation. The fallback is
+        // Prefer the browser/analyzer's detailed explanation. The fallback is
         // still a complete DevTools-style cause and suggestion, never a terse
         // "has no effect" message.
         md.appendMarkdown(issue.reason?.trim() || createInactivePropertyExplanation(issue.propertyName));

@@ -53,7 +53,7 @@ function isValidRange(range: CssLocation | undefined): range is CssLocation {
  * The inline icon anchors on the final source character of the declaration
  * (normally the `;`), exactly as derived by the PR4 AST `endAnchorRange`.
  * This is only a fallback for issues that do not carry an explicit
- * `iconAnchorRange` (e.g. mock analyser output) — the real pipeline always
+ * `iconAnchorRange` (e.g. mock analyzer output) — the real pipeline always
  * supplies the exact anchor.
  */
 function anchorFromDeclarationEnd(declarationRange: CssLocation): CssLocation {

@@ -48,8 +48,8 @@ export interface CssIssue {
   overrideTarget?: CssLocation;
 
   /**
-   * Optional reason code explaining why the property is inactive.
-   * Not used in Phase 1, reserved for future diagnostic messages.
+   * Reason code explaining why the property is inactive.
+   * Always set by the producers of the browser-driven analysis flow.
    */
   reasonCode?: string;
 

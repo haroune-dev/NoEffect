@@ -256,6 +256,7 @@ export class BrowserRunner {
     }
   }
 
+  /** Teardown hook: start a shutdown without awaiting it. */
   dispose(): void {
     void this.shutdown();
   }

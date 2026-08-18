@@ -2,7 +2,7 @@
  * Phase 3 (first-run & visibility) + Phase 5: Diagnose Setup diagnostics.
  *
  * Deterministic, safe collection of an environment report:
- *   - `collectDiagnostics` — legacy flat lines (output channel + Quick Pick);
+ *   - `collectDiagnostics` — plain flat lines (output channel + Quick Pick);
  *   - `collectDiagnoseReport` — the Phase 5 structured per-check report
  *     (isolated checks, redacted, session-aware).
  *

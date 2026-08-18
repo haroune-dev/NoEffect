@@ -1,8 +1,8 @@
 /**
  * Context collected while producing an inactive-property diagnostic.
  *
- * The browser analyser can supply a richer explanation directly. This
- * context is used by the Phase 1 mock analyser and as a sensible fallback
+ * The browser analyzer can supply a richer explanation directly. This
+ * context is used by the Phase 1 mock analyzer and as a sensible fallback
  * when a diagnostic does not include one.
  */
 export interface InactivePropertyContext {

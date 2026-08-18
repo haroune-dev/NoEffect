@@ -194,7 +194,7 @@ function locationKey(location: CssLocation): string {
  * Every emitted issue carries a valid local source range
  * (declarationRange / propertyNameRange / iconAnchorRange); inactive
  * declarations that cannot be mapped locally are skipped, never reported
-*  with a placeholder or empty range.
+ * with a placeholder or empty range.
  */
 
 /**

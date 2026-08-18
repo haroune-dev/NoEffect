@@ -33,24 +33,29 @@ export class RunMetrics {
   /** Companion bookkeeping of a multi-companion run (Level 11), if any. */
   companionCoverage: CompanionCoverage | undefined;
 
+  /** Record one successfully inspected selector. */
   markAnalyzed(): void {
     this.analyzedSelectorCount++;
   }
 
+  /** Record one skipped selector, with the reason it was skipped. */
   markSkipped(selector: string, reason: string): void {
     this.skippedSelectorCount++;
     this.skippedReasons.push(`${selector} — ${reason}`);
   }
 
+  /** Record that the whole run was skipped, with a reason. */
   markSkippedAll(reason: string): void {
     this.skippedAll = true;
     this.skippedReasons.push(reason);
   }
 
+  /** Record a non-fatal, pre-classified problem observed during the run. */
   addWarning(failure: AnalysisFailure): void {
     this.warnings.push(failure);
   }
 
+  /** Record the companion bookkeeping of a multi-companion run. */
   setCompanionCoverage(coverage: CompanionCoverage): void {
     this.companionCoverage = coverage;
   }

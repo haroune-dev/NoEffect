@@ -73,20 +73,21 @@ export interface CssGlobalOutcomeStore {
 }
 
 /**
- * Manages browser analysis sessions.
+ * Manages browser analysis sessions and the namespaced outcome store.
  *
- * In Phase 1, this is a simple placeholder that stores the last analysis
- * result and provides lifecycle hooks. In later phases, it will manage
- * the actual Chromium CDP session lifecycle — launching, reusing, and
- * tearing down browser instances.
+ * Results are namespaced: global multi-companion CSS outcomes live in
+ * `cssGlobal[cssPath]` keyed by (content fingerprint, context fingerprint,
+ * epoch); page-local embedded outcomes live in `htmlEmbedded[htmlPath]`
+ * keyed by (content fingerprint, epoch). `completeAnalysis` writes exactly
+ * ONE namespace per run, and the re-analysis skip gate requires a recorded
+ * success/partial run whose content AND context fingerprints are unchanged
+ * (F3).
  *
- * Phase 6 (multi-file orchestration): results are namespaced. Global
- * multi-companion CSS outcomes live in `cssGlobal[cssPath]` keyed by
- * (content fingerprint, context fingerprint, epoch); page-local embedded
- * outcomes live in `htmlEmbedded[htmlPath]` keyed by (content fingerprint,
- * epoch). `completeAnalysis` writes exactly ONE namespace per run, and the
- * re-analysis skip gate requires a recorded success/partial run whose
- * content AND context fingerprints are unchanged (F3).
+ * As `CssGlobalOutcomeStore` (F4), the manager is also the single writer of
+ * global CSS outcomes: the HTML flow reuses/records them instead of
+ * emitting single-page external-sheet issues. Browser/CDP/dev-server
+ * resources themselves are owned by the lifecycle layer — this class owns
+ * the outcome state, the in-flight gate and completion listeners only.
  */
 export class SessionManager implements CssGlobalOutcomeStore {
   private lastResult: AnalysisResult | null = null;
@@ -388,7 +389,7 @@ export class SessionManager implements CssGlobalOutcomeStore {
   }
 
   /**
-   * Clean up any resources (browser sessions in later phases).
+   * Clear all recorded outcomes, gate state, and completion listeners.
    */
   async dispose(): Promise<void> {
     this.cancelAnalysis();
