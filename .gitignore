@@ -4,3 +4,14 @@ node_modules/
 .vscode-test/
 *.vsix
 .DS_Store
+
+# Repo-only audit/planning reports (kept on disk, excluded from the VSIX via .vscodeignore)
+CODEBASE_AUDIT_REPORT.md
+COMMENTS_AUDIT_REPORT.md
+PROJECT_STATE.md
+METADATA-REPORT.md
+NODE-COMPAT-AUDIT.md
+PACKAGING-REPORT.md
+LEVEL*-REPORT.md
+PHASE*-REPORT.md
+PLAN-*.md
