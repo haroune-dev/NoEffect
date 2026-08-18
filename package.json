@@ -1,7 +1,7 @@
 {
   "name": "no-effect",
   "displayName": "NoEffect — Inactive CSS Inspector",
-  "description": "Highlights CSS declarations that have no effect in the rendered page, using a real Chromium engine over the Chrome DevTools Protocol as ground truth — exactly like DevTools. Analyzes stylesheets, embedded <style> blocks and inline style=\"\" attributes, then dims inactive properties with a DevTools-style tooltip right in the editor.",
+  "description": "Identifies CSS declarations that have no effect in the rendered page, powered by a real Chromium engine via the Chrome DevTools Protocol. Analyzes stylesheets, embedded <style> blocks, and inline style=\"\" attributes, dimming inactive properties with DevTools-inspired tooltips right in your editor",
   "version": "0.9.0",
   "publisher": "haroune-dev",
   "preview": true,
