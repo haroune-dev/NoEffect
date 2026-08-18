@@ -11,11 +11,14 @@
   VS Code: **Node 18.15.0 on the minimum 1.85.0** (Electron 25.9.7; see
   `NODE-COMPAT-AUDIT.md` for the verified VS Code → Electron → Node matrix and
   the per-API audit). **Development/build/tests require Node ≥ 20** (unchanged).
-  TypeScript `^5.3.0` (strict), only runtime dep: `ws`. Types pinned as permanent
+  TypeScript `^5.3.0` (strict), runtime dependency: `ws` (declared under
+  `dependencies` since the Phase 5 remediation, `^8.21.1`; `@types/ws` stays a
+  dev dependency). Types pinned as permanent
   compile-time guards: `@types/vscode` EXACTLY `1.85.0`, `@types/node` `^18.19.0`.
 - **Packaging (release pipeline):** the shipped artifact is an esbuild bundle
   `dist/extension.js` (target `node18.15`, matches the recorded compat policy;
-  `ws` is BUNDLED in, so `dependencies` is empty — `ws` is a devDependency).
+  `ws` is BUNDLED in, so the VSIX ships with no install-time deps even though
+  it is now declared as a runtime `dependency`).
   `out/` is the dev/tests/benchmark layout, `dist/` is what ships
   (`main` → `./dist/extension.js`). Build: `npm run build` (or
   `npm run vscode:prepublish`). Package: `npm run test:pack` (full packaged
@@ -87,12 +90,12 @@ truthful source** of formatting-context facts.
 | **Activation / command** | `activation/activate.ts`, `activation/commands.ts`, `extension.ts` | Register commands (`noEffect.analyzeCurrentFile`, `clearDecorations`, `showStatus`, `diagnoseSetup`, `showOutputLogs`), wiring, deactivation → `defaultLifecycle.dispose()` |
 | **Phase 3 UI (first-run & visibility)** | `activation/constants.ts`, `statusModel.ts`, `statusBarController.ts`, `readinessController.ts`, `firstRun.ts`, `statusViewModel.ts`, `diagnoseSetup.ts` | Status bar item (Right/100, one per lifetime), readiness controller (generation-counter freshness, 300 ms coalescing, bounded first snapshot), one-time global-state first-run welcome, Show Status Quick Pick, Diagnose Setup summary, context keys `noEffect:ready`/`enabled`/`setupNeeded`/`workspaceBlocked` |
 | **Analysis orchestration** | `services/cdpAnalyzer.ts`, `services/sessionManager.ts`, `services/debounceService.ts`, `services/watchService.ts`, `services/analysisPage.ts`, `services/companionResolver.ts`, `services/companionUrl.ts`, `services/companionSettings.ts` | Entry points `analyzeCssFile` / `analyzeHtmlFile` / `analyzeFixture`; editor-file analysis; analysis `<link>`-driven page building; wrapper-page generation; cross-directory companion-document resolution over one shared URL model (matcher + DevServer agree on what a browser requests) |
-| **Parser** | `parser/cssAst.ts`, `parser/htmlScanner.ts`, `parser/sourceMapResolver.ts` | Position-exact CSS AST (rules, selectors, declarations, ranges); HTML embedded-CSS scanner (`<style>` blocks + `style=""` fragments); sourceline/column resolution |
+| **Parser** | `parser/cssAst.ts`, `parser/htmlScanner.ts` | Position-exact CSS AST (rules, selectors, declarations, ranges; one shared `scanCss` scanner state machine since the Phase 5 remediation); HTML embedded-CSS scanner (`<style>` blocks + `style=""` fragments); sourceline/column resolution |
 | **Caches** | `cache/astCache.ts`, `cache/mappingCache.ts`, `cache/fileHashCache.ts`, `cache/embeddedCssCache.ts`, `cache/decorationStateCache.ts`, `cache/companionCache.ts`, `cache/multiPassCache.ts` | Content-addressed AST, mapping (rules fingerprint), file-hash, HTML fragment / embedded parse / inline-mapping, decoration-state, hash-validated companion-resolution caches; per-pass + merged multi-companion caches (Level 11) |
-| **Browser / CDP** | `browser/browserRunner.ts`, `browser/cdpClient.ts`, `browser/devServer.ts`, `browser/pageLoader.ts`, `browser/lifecycleManager.ts`, `browser/matchedStylesCollector.ts`, `browser/layoutContextBuilder.ts` | Chromium launch, WS CDP client, static+virtual DevServer, persistent page session with transparent recovery, DOM/matched-style collection, layout-context build |
+| **Browser / CDP** | `browser/browserRunner.ts`, `browser/cdpClient.ts`, `browser/devServer.ts`, `browser/lifecycleManager.ts`, `browser/matchedStylesCollector.ts`, `browser/layoutContextBuilder.ts` | Chromium launch, WS CDP client (`send(): Promise<unknown>`, typed payload surfaces at the call sites since Phase 5), static+virtual DevServer, persistent page session with transparent recovery, DOM/matched-style collection, layout-context build |
 | **Engine** | `engine/layoutContext.ts`, `engine/declarationNormalizer.ts`, `engine/inactivePropertyEngine.ts`, `engine/verdictMerge.ts` | Immutable `LayoutContext` + `PseudoBoxFacts` + pseudo-box contexts; declaration normalize/dedupe; declarative engine surface; multi-companion verdict lattice (⊥ ≤ I ≤ A, JOIN = max, companion-independent keys, `mergePassOutcomes`) |
 | **Rules** | `inactive/inactiveRuleEngine.ts`, `inactive/ruleRegistry.ts`, `inactive/inactiveRule.ts`, `inactive/reasonCode.ts`, `inactive/rules/…` (29 modules, 8 families) | Two-stage dispatch; single owner per property; standardized reason codes |
-| **Matcher / mapping** | `matcher/declarationMapper.ts`, `matcher/propertyMatcher.ts`, `matcher/ruleMatcher.ts`, `matcher/positionMapper.ts` | Link CDP declaration/model back to exact local ranges (`declarationRange`, `propertyNameRange`, `iconAnchorRange`); `matchInlineDeclaration` for `style=""` content |
+| **Matcher / mapping** | `matcher/declarationMapper.ts` | Link CDP declaration/model back to exact local ranges (`declarationRange`, `propertyNameRange`, `iconAnchorRange`); `matchInlineDeclaration` for `style=""` content |
 | **Diagnostics / UI** | `diagnostics/decorationPlanner.ts`, `diagnostics/decorations.ts`, `diagnostics/inactivePropertyExplanation.ts` | Plan ranges, render dim + inline-`after`-icon decorations, single hover provider, fallback tooltips; TRANSIENT override-winner `→|` gutter badge — shown ONLY during `noeffect.jumpAndHighlight` navigation (`DecorationManager.showTransientWinnerBadge`, theme-aware light/dark SVG, auto-dismissed on the first post-jump selection change via `TransientBadgeDismissalGate` in `diagnostics/overrideJumpTarget.ts`; `onDidChangeActiveColorTheme` recreate-and-reapply for the static decorations) |
 | **Config** | `config/settings.ts` | `enabled`, `analyzeOnSave`, `analyzeOnType`, `debounceMs`, `highlightStyle` (`both|iconOnly|dimOnly`), `chromiumPath`, `ignoredFiles`, `maxFileSizeKb` |
 | **Environment readiness** | `environment/browserDetection.ts`, `environment/workspace.ts`, `environment/fileEligibility.ts`, `environment/readiness.ts` | Browser discovery/validation (`BrowserDetector`, cached, injectable), workspace scheme classification, deterministic file eligibility (scheme→language→generated→ignore→size), `EnvironmentReadiness` state feeding the Phase 1 failure contracts |
@@ -147,7 +150,7 @@ from its linked stylesheets, and inspects against the real DOM (no wrapper).
 | Grid | `gridContainerRules`, `gridItemRules`, `gridTemplateRules` | `grid-template-*`, `grid-*` item placement; grid-lane-aware |
 | Position | `topRightBottomLeft`, `inset`, `zIndex`, `positionAnchorRules` | requires positioned / flex-grid-item; anchor-positioning |
 | Flow | `float`, `clear`, `listRules` | float/clear applicable-to checks; `list-style` on list items |
-| Overflow | `overflow`, `overflowX`, `overflowY`, `scrollRules`, `textOverflow` | clip/scroll contexts; `scrollbar-gutter`, `overscroll-behavior`, scroll-snap; `text-overflow` truncation preconditions |
+| Overflow | `overflow`, `scrollRules`, `textOverflow` | clip/scroll contexts; `scrollbar-gutter`, `overscroll-behavior`, scroll-snap; `text-overflow` truncation preconditions. The three former byte-identical modules (`overflow`/`overflowX`/`overflowY`) were merged into one module exporting all three rules (Phase 5 remediation) |
 | Box | `sizingRules`, `boxSuppressionRules`, `inlineSuppressionRules`, `transformRules`(+`backdropFilterRule`) | `min/max-width/height` (box generation), `display: contents`, inline-box margin suppression, transforms/transformable |
 | Misc | `objectFit`, `pointerEvents`, `verticalAlign` | replaced-element (`object-fit`/`object-position`), inline `vertical-align`, pointer-events applicability |
 | Table | `paddingRules`, `tableRules` | table-internal box padding; broken table chain (`BROKEN_TABLE_CONTEXT`) |
@@ -163,7 +166,15 @@ machine-readable, consumed by tests/reports.
 **Status: Milestone Level 11 complete (multi-companion evidence merging) +
 failure-UX Phases 1–6 done (Phase 6 = multi-file orchestration: no forced CSS
 save, context-fingerprint skips, single-writer outcome namespaces) + the
-interactive override-navigation milestone (jump-and-flash hovers).**
+interactive override-navigation milestone (jump-and-flash hovers) + the audit
+remediation plan fully consumed (Phases 1–6, commits
+`0c2e5a5` → `09c0825`; see the remediation ledger in `CODEBASE_AUDIT_REPORT.md`
+§4 — correctness, memory/perf, security, dead-code removal, clean code, and
+the Phase 6 latent-finding sweep).**
+
+ESLint is now configured and clean (`.eslintrc.json` added in Phase 5;
+`npm run lint` = 0 problems), `ws` is a declared runtime dependency, and every
+node-loop `info` log is at `debug`.
 The planned roadmap (Levels 1–8) is implemented and stable plus the
 embedded-CSS milestone (Level 9), the cross-directory companion milestone
 (Level 10), the multi-companion evidence-merge milestone (Level 11), the
@@ -196,6 +207,7 @@ hygiene) rather than core construction.
 | 9.x (failure UX) | Phase 5: recovery, retry & diagnose setup: session-health state machine (`SessionHealth`) with epochs, typed `RETRY_POLICY` backoff/retries, single-flight atomic restart, bounded awaits (`withTimeout`/`sleep` with token disarm), epoch-stamped outcomes, crash/CDP-reconnect notification policy (dedupe), `restartAnalysisSession` + `clearCache` commands, upgraded Diagnose Setup report + opt-in live browser probe | ✅ `PHASE5-REPORT.md` |
 | 9.x (failure UX) | Phase 6: multi-file orchestration (F1–F5): pure context fingerprint from the validated companion cache; skip gate keyed by content+context fingerprints; single-writer outcome namespaces (`cssGlobal` per CSS file keyed (contentFP, contextFP, epoch), `htmlEmbedded` per HTML file keyed (contentFP, epoch)) so linked-sheet issues flow through one fresh multi-companion outcome and `<style>`/`style=""` issues stay page-local; no forced CSS save; trigger matrix (file events, settings/resolver change, readiness retry, HTML open, 300 ms coalescing); 11 mandated tests (T1–T11) on the `multipage-orchestration` fixture; smoke suite made a real gate (bundle-channel spy + verdict handshake) | ✅ `PHASE6-REPORT.md` |
 | 12 | Interactive overridden-declaration navigation: hover tooltip of an `OVERRIDDEN_BY_LATER_DECLARATION` duplicate gets `Overridden by a later declaration of the same property.` + a TRUSTED `[Go to overriding declaration (Line N)]` command link (no arrow adornment); the analyzer records the cascade winner's local property-name range (`issue.overrideTarget`, via the `overriddenBy` pointer materialized through the owner-sheet mapping for rule declarations and the occurrence-ranked fragment mapping for inline attributes); `noeffect.jumpAndHighlight` (hidden from the palette via `menus.commandPalette` `"when": "false"`) focuses the document, moves the cursor to `(line-1, character-1)`, reveals centered and flashes the winner with the theme-native `editor.wordHighlightStrongBackground` color (adaptive in Dark/Light/HC); stale-guard: the range is only flashed when the live text still reads the expected property name, otherwise the line is revealed without flashing; single-flash invariant (one timer + one decoration, cancelled on repeat clicks / editor-document change-close / dispose) | ✅ (this milestone; pure module `src/diagnostics/overrideJumpTarget.ts` + controller `src/activation/overrideJump.ts`) |
+| Audit remediation | Phases 1–6 of `CODEBASE_AUDIT_REPORT.md` (commits `0c2e5a5` `dd2598c` `f0d5ca0` `9093e32` `76bda84` `09c0825`): correctness/robustness, memory & perf, security hardening, dead-code removal, clean code (merged overflow rules, shared CSS scanner, explicit `ws` dependency, frozen context facts, first ESLint config at 0 problems), latent-finding sweep (scheme-gated watcher, defensive copies, rank-ordered verdict merge, root-`/` containment, decoded virtual lookup, O(n) dedup, `debug`-level node-loop logs). Unit **887**, integration **53**; `npm run lint` green after every phase | ✅ all plan phases + Phase 6 sweep complete (ledger in `CODEBASE_AUDIT_REPORT.md` §4) |
 
 ### Fully implemented & stable today
 - Full CDP pipeline (CSS + HTML + fixture flows + **embedded CSS**), position-exact
@@ -214,6 +226,32 @@ hygiene) rather than core construction.
   `style=""` attribute) and through the packaged smoke on both VS Code builds.
 
 ### Recently resolved regressions / edge cases
+- **Audit remediation Phases 5 & 6 landed** — see `CODEBASE_AUDIT_REPORT.md` §4 ledger.
+  Phase 5 (`76bda84`, clean code, P3-CLEAN-43..47): the three byte-identical
+  overflow rule modules merged into one `overflow.ts`; the three near-verbatim
+  `cssAst` scanner state machines (`findBlockEnd`/`scanToStructuralChar`/
+  `findFirstColon`) replaced by one shared `scanCss` helper; `ws` moved from
+  `devDependencies` to `dependencies`; `pseudoBoxFacts` values are now copied
+  AND frozen in the layout context (no shared-reference mutation leak); and the
+  repo's FIRST ESLint config (`.eslintrc.json`) was added — 97 pre-existing
+  violations fixed to zero by removing dead code and narrowing `any`→`unknown`
+  at the CDP payload boundaries, not by disabling rules. Phase 6 (`09c0825`,
+  latent-finding sweep, P3-LOG-26/29-34 + P3-PERF-39/41): `watchService`
+  ignores non-`file` URIs; `collectCoverage` snapshots its counts; explicit
+  `mode` gets a truthful fallback reason; `probeVersion` disposes its
+  cancellation subscription; `mergePassOutcomes` attributes issues to the
+  highest-RANKED pass for unsorted inputs; `fromServedPath` no longer rejects
+  every request from a `serverRoot` of `/`; DevServer virtual lookups decode
+  browser-normalized names; ranged dedup is O(n); and every per-selector/
+  per-declaration node-loop log is at `debug`. Unit: **887**; integration: **53**;
+  lint: **0 problems**.
+- **Test-hygiene fix (companionResolver suite)** — every `layout()` temp root
+  leaked into `/tmp`; the resolver's ancestor-chain search reaches the tmpdir,
+  so same-run sibling roots (and cross-run leftovers) with a basename-matching
+  stylesheet pair later tests and broke "mismatched basename never pairs" /
+  "EXISTING file never falls back" on any repeat run. The file now removes its
+  root via an `after()` hook and the deployment-style tests scope resolution to
+  their own root (`workspaceFolderProvider`).
 - **Multi-page stress suite (5 failures) fixed.** The engine now dims
   exactly what a page chain proves inert and nothing else. Root causes
   were split between the fixture and the engine:
@@ -650,8 +688,14 @@ never a superseded-session artifact. Locked by the integration warm-path
   `Microsoft.VisualStudio.Services.Content.License` asset). The license
   restricts downstream COMMERCIAL use (noncommercial purposes only) — a
   deliberate choice, stated factually; README wording is a separate task.
-- **ESLint is not configured** (`npm run lint` fails; no `eslint.config`/`.eslintrc`);
-  type-checking = `tsc -p ./` is the real gate.
+- **ESLint is configured and clean** (Phase 5 remediation): `.eslintrc.json`
+  (root, `eslint:recommended` + `@typescript-eslint/recommended`,
+  `argsIgnorePattern: "^_"`) — `npm run lint` reports **0 problems**. The 97
+  pre-existing violations were fixed by removing dead code and typing
+  `any`→`unknown` at CDP payload boundaries; the only scoped
+  `eslint-disable-next-line`s are the intentional lazy `vscode` require in
+  `logger.ts` and the declare-then-assign closure shape in `cancellation.ts`.
+  `tsc -p ./` remains the real type gate.
 - **Vestigial/duplicated artifacts: resolved.** All stale `.js` twins under
   `src/` (`browserRunner.js`, `cdpClient.js`, `devServer.js`, `cdpAnalyzer.js`,
   `analyzer.js`, `logger.js`, `models/{index,cssIssue,cssLocation,analysisResult}.js`)
@@ -691,16 +735,17 @@ never a superseded-session artifact. Locked by the integration warm-path
 
 | Suite | Count | Status |
 |---|---|---|
-| Unit (`src/test/unit/*.test.ts`) | **844** | ✅ all passing (`npm test`) |
-| Integration (`src/test/integration/*.test.ts`) | **51** | ✅ all passing (real Chromium; the advanced-multipage probe now asserts all five stress scenarios) |
+| Unit (`src/test/unit/*.test.ts`) | **887** | ✅ all passing (`npm test`) |
+| Integration (`src/test/integration/*.test.ts`) | **53** | ✅ all passing (real Chromium; the advanced-multipage probe now asserts all five stress scenarios) |
 | Smoke (`src/test/smoke/`) | min + stable | ✅ activation + full analysis on the oldest VS Code (see below) |
 | Benchmark (`src/test/benchmark/benchmark.ts`) | — | ✅ |
 
 ### Verification commands (run all four before merging work)
 ```bash
 npm run compile            # tsc strict — the type gate
-npm test                   # unit suite (844)
-npm run test:integration   # real-Chromium integration (51, all passing)
+npm run lint               # eslint — 0 problems (Phase 5+ gate)
+npm test                   # unit suite (887)
+npm run test:integration   # real-Chromium integration (53, all passing)
 npm run test:smoke:all     # host smoke on VS Code 1.85.0 (min) + stable
 node out/test/benchmark/benchmark.js   # cold/warm perf
 ```
@@ -731,7 +776,7 @@ Last measured: **PASS on 1.85.0 (`node=18.15.0 electron=25.9.7`) and on stable
 see `NODE-COMPAT-AUDIT.md`.
 
 ### Source-hygiene guard
-`src/test/unit/sourceHygiene.test.ts` (2 tests, part of the 709) walks the whole
+`src/test/unit/sourceHygiene.test.ts` (2 tests, part of the 887) walks the whole
 `src/` tree and fails if any `.js`/`.mjs`/`.cjs` file appears (whitelist
 `ALLOWED_NON_TS_FILES`, empty by design — static assets need a written
 justification), and asserts `tsconfig.json` keeps `outDir: out`, `rootDir: src`
@@ -806,9 +851,13 @@ single CDP connection).
    budget trade-off in settings UI.
 3. **@media-awareness** — evaluate inactive verdicts per-`@media` viewport where
    feasible, or at least document the single-viewport limitation in settings UI.
-4. **Hygiene** — remove stale `.js`/mock duplicates from `src/` (mostly done,
-   guard-held); add an ESLint config (`npm run lint` currently fails; `tsc`
-   stays the real gate).
+4. **Hygiene** — ESLint is now configured and green (`.eslintrc.json`, Phase 5);
+   the `tsc` gate stays. Optional next hygiene items: level-gated
+   `logger.ts` writes (every `write()` currently formats a timestamp and
+   appends to the output channel even at `debug`) and the two deferred
+   cssAst cleanups (`@media/*x*/` at-rule kind split; comment-verbatim rule
+   preludes vs CDP `selectorText` — behavior-affecting, intentionally
+   untouched during the Phase 5 scanner merge).
 5. **Coverage** — consider a `place-content`/multicol family audit and
    `var()`-token awareness for tooltip explanations.
 
@@ -842,7 +891,8 @@ single CDP connection).
   content FP ∧ context FP all unchanged — a companion create/change/delete must
   re-analyze even with identical CSS bytes. HTML runs emit only page-local
   embedded issues; linked-sheet issues always flow through `cssGlobal`.
-- **Always verify:** `npm run compile` + `npm test` + `npm run test:integration`
+- **Always verify:** `npm run compile` + `npm run lint` (0 problems — the
+  Phase 5+ gate) + `npm test` + `npm run test:integration`
   + `npm run test:smoke:all` (host smoke on the minimum VS Code and stable; see
   §5 and `NODE-COMPAT-AUDIT.md`)
   (+ benchmark for perf work). Add or update a fixture control and a regression

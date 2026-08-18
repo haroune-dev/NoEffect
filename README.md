@@ -61,7 +61,14 @@ Extension Layer → Browser/CDP Layer → Matching Layer → Decorations
 
 ## Current Status
 
-**Phase 1** — Basic structure, mock analysis, decoration pipeline verification.
+**v0.9.0** — real Chromium/CDP analysis of CSS files, `<style>` blocks and
+`style=""` attributes with position-exact mapping back into the source;
+cross-directory companion-document resolution with multi-companion evidence
+merging (a declaration is dimmed only when no real page context gives it
+effect); interactive override-jump hovers; readiness gating and a self-healing
+session (recovery, retry, diagnose). Verified by the unit (887), real-Chromium
+integration (53) and packaged-VSIX smoke suites, with `tsc` and ESLint (0
+problems) as gates.
 
 ## License
 

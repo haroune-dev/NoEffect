@@ -461,37 +461,70 @@ if (queue.length > 0 && batch % 16 === 0) {
 
 ### Phase 1 — Correctness & robustness (do first; ~1-2 days)
 
-- [ ] **P1-BUG-01** Guard `fileHashCache.getOrRead` in `cachedPageContainsAnySelector` + `companionContextFingerprintFor`; add a unit test deleting a companion between resolution and selection.
-- [ ] **P2-BUG-02** Document-version re-validation in `commands.ts` before hashing/recording/applying.
-- [ ] **P2-BUG-03** Null-safe probing in `classifyFailure`; add `classifyFailure(null)` / `classifyFailure(undefined)` unit tests.
-- [ ] **P2-BUG-10** Single-delivery fix in `ReadinessController.runWith`; assert one `onSnapshot` per refresh in tests.
-- [ ] **P2-BUG-11** Try/catch around `JSON.parse` in `CdpClient`; reject pending requests on socket `'error'`.
-- [ ] **P3-LOG-23/24/25** Re-check cancellation inside the listener; catch `jumpToDeclaration` rejections; fix first-run failure semantics + awaited `globalState.update`.
+- [x] **P1-BUG-01** Guard `fileHashCache.getOrRead` in `cachedPageContainsAnySelector` + `companionContextFingerprintFor`; add a unit test deleting a companion between resolution and selection.
+- [x] **P2-BUG-02** Document-version re-validation in `commands.ts` before hashing/recording/applying.
+- [x] **P2-BUG-03** Null-safe probing in `classifyFailure`; add `classifyFailure(null)` / `classifyFailure(undefined)` unit tests.
+- [x] **P2-BUG-10** Single-delivery fix in `ReadinessController.runWith`; assert one `onSnapshot` per refresh in tests.
+- [x] **P2-BUG-11** Try/catch around `JSON.parse` in `CdpClient`; reject pending requests on socket `'error'`.
+- [x] **P3-LOG-23/24/25** Re-check cancellation inside the listener; catch `jumpToDeclaration` rejections; fix first-run failure semantics + awaited `globalState.update`.
 
 ### Phase 2 — Memory & performance (next; ~2-3 days)
 
-- [ ] **P2-MEM-07 / P2-MEM-08** LRU caps on `embeddedParseCache`, `embeddedMappingCache`, `mappingCache`, `multiPassCache`; wire `multiPassCache.reset()` into `noEffect.clearCache`.
-- [ ] **P2-PERF-09 / P2-PERF-12** Cheap size+mtime gate before hashing; cooperative/yielded companion scanning or `vscode.workspace.fs`; reduce hot-path `logger.info` calls.
-- [ ] **P3-PERF-35/36/37/38/40** Clear the `closeServer` timer; async profile removal with path containment; log at `debug` on cache hits; trim mapper logging.
+- [x] **P2-MEM-07 / P2-MEM-08** LRU caps on `embeddedParseCache`, `embeddedMappingCache`, `mappingCache`, `multiPassCache`; wire `multiPassCache.reset()` into `noEffect.clearCache`.
+- [x] **P2-PERF-09 / P2-PERF-12** Cheap size+mtime gate before hashing; cooperative/yielded companion scanning or `vscode.workspace.fs`; reduce hot-path `logger.info` calls.
+- [x] **P3-PERF-35/36/37/38/40** Clear the `closeServer` timer; async profile removal with path containment; log at `debug` on cache hits; trim mapper logging.
 
 ### Phase 3 — Security hardening (~1-2 days)
 
-- [ ] **P2-SEC-04** JSON-aware secret redaction + regression tests for `{"apiKey": ...}` and lowercase keys.
-- [ ] **P2-SEC-05** Encode + escape `cssHref` in `buildWrapperPage`.
-- [ ] **P2-SEC-06** Backtick-wrap/escape authored selector text entering hover Markdown.
+- [x] **P2-SEC-04** JSON-aware secret redaction + regression tests for `{"apiKey": ...}` and lowercase keys.
+- [x] **P2-SEC-05** Encode + escape `cssHref` in `buildWrapperPage`.
+- [x] **P2-SEC-06** Backtick-wrap/escape authored selector text entering hover Markdown.
 
 ### Phase 4 — Dead code removal (~0.5-1 day, verify with `npm test`)
 
-- [ ] Delete: `matcher/positionMapper.ts`, `matcher/propertyMatcher.ts`, `matcher/ruleMatcher.ts`, `parser/sourceMapResolver.ts`, `browser/pageLoader.ts`, `utils/fs.ts`, `utils/paths.ts`, `utils/index.ts`.
-- [ ] Remove dead exports: `redactLines`, `NotificationId`, policy helpers, `KillPlan`/`runTaskkill` surface, `report.ts` production exports, temp-profile sweep (or wire it into activation), `collectDiagnostics`, `isOutOfFlow`, `locationDimensions`, `entry.hash`.
-- [ ] Fix the `notifications.ts` message-map gap (`DEVSERVER_START_FAILED` etc.) and delete the unreachable `DEV_SERVER_FAILED` entry.
-- [ ] Remove the duplicate `disposables.push` in `activate.ts:335`; move or delete root-level `repro-*`/`testCdp*`/`.verify-companion.mjs` artifacts.
+- [x] Delete: `matcher/positionMapper.ts`, `matcher/propertyMatcher.ts`, `matcher/ruleMatcher.ts`, `parser/sourceMapResolver.ts`, `browser/pageLoader.ts`, `utils/fs.ts`, `utils/paths.ts`, `utils/index.ts`.
+- [x] Remove dead exports: `redactLines`, `NotificationId`, policy helpers, `KillPlan`/`runTaskkill` surface, `report.ts` production exports, temp-profile sweep (or wire it into activation), `collectDiagnostics`, `isOutOfFlow`, `locationDimensions`, `entry.hash`.
+- [x] Fix the `notifications.ts` message-map gap (`DEVSERVER_START_FAILED` etc.) and delete the unreachable `DEV_SERVER_FAILED` entry.
+- [x] Remove the duplicate `disposables.push` in `activate.ts:335`; move or delete root-level `repro-*`/`testCdp*`/`.verify-companion.mjs` artifacts.
 
-### Phase 5 — Clean code (ongoing)
+### Phase 5 — Clean code
 
-- [ ] **P3-CLEAN-43** Merge the three overflow rule files. **P3-CLEAN-44** extract one shared scanner for `cssAst`. **P3-CLEAN-45/47** fix indentation and copy `pseudoBoxFacts`. **P3-CLEAN-46** document/move the `ws` dependency.
-- [ ] Re-run `npm run lint` and `npm test` after every phase; add targeted unit tests for each behavioral fix (the existing test suite covers the affected modules).
+- [x] **P3-CLEAN-43** Merge the three overflow rule files. **P3-CLEAN-44** extract one shared scanner for `cssAst`. **P3-CLEAN-45/47** fix indentation and copy `pseudoBoxFacts`. **P3-CLEAN-46** document/move the `ws` dependency.
+- [x] Re-run `npm run lint` and `npm test` after every phase; add targeted unit tests for each behavioral fix (the existing test suite covers the affected modules).
+
+### Phase 6 — Latent-finding sweep (post-plan; dry-run assessment of the remaining P3-LOG/P3-PERF items)
+
+- [x] **P3-LOG-26** Gate `watchService.isRelevantFile` on `uri.scheme === 'file'` — `git:`/virtual documents no longer fire spurious re-analysis.
+- [x] **P3-LOG-29** Defensive copy of `signals.counts` in `collectCoverage` — published snapshots can no longer be mutated retroactively.
+- [x] **P3-LOG-30** `buildOutcome` uses a mode-appropriate `defaultModeReason` — an explicit `failed`/`limited` mode no longer reports `'full analysis'`.
+- [x] **P3-LOG-31** `probeVersion` disposes its `onCancellationRequested` subscription — no listener accumulation per probe.
+- [x] **P3-LOG-32** `mergePassOutcomes` attributes issues/merged-A to the HIGHEST-RANKED pass (min-rank selection) — the documented "ranks are the only order" contract is now enforced for unsorted inputs; mis-indented `if` fixed.
+- [x] **P3-LOG-33** `fromServedPath` containment special-cases `serverRoot === '/'` — a filesystem-root server root no longer rejects every request (`//` prefix check).
+- [x] **P3-LOG-34** DevServer virtual-file lookup strips `?query`/`#fragment` and falls back to the percent-decoded name (try/catch) — browser-normalized wrapper URLs no longer 404.
+- [x] **P3-PERF-39** `declarationNormalizer` ranged dedup is O(n) via a `Map<rangedKey, index>` — no more per-comparison key re-hashing.
+- [x] **P3-PERF-41** All per-selector/per-declaration `info` logs in the `cdpAnalyzer` node loops (computed display, rule + inline inspect/active/inactive, `locateNode` traces) downgraded to `debug`.
+
+**Deferred (assessed, not worth fixing now):**
+- **P3-LOG-27** `layoutContextBuilder` cache keyed by nodeId only — latent (no caller passes materially different options for the same node); folding `pseudoContent`+`options` into the key is a ~1-2 h change with no observable gain today.
+- **P3-LOG-28** `mappingKeyFor` unescaped `|` delimiter — theoretical collision only (needs crafted CDP input; keys already sit inside a sha256 batch signature).
+- **P3-PERF-37/38** residual log churn — cache hits/misses and `matchInlineDeclaration` successes are already at `debug`; the real lever is `logger.ts`'s missing level-gating (every `write()` formats a timestamp and appends to the output channel), tracked as an optional future item.
+- **P3-CLEAN-44 secondary items** — `@media/*x*/ screen` at-rule misclassification and comment-verbatim rule preludes diverging from CDP `selectorText` are behavior-affecting and were intentionally left untouched during the Phase 5 scanner merge.
 
 ---
 
-*Report generated from a read-only audit pass. Line numbers refer to the current working tree (`git status`: `src/activation/activate.ts` and `src/activation/commands.ts` have uncommitted modifications — findings in those files were verified against the working-tree content).*
+## 4. Remediation Ledger
+
+| Phase | Commit | Scope | Verification |
+|---|---|---|---|
+| 1 | `0c2e5a5` | Correctness & robustness (P1-BUG-01, P2-BUG-02/03/10/11, P3-LOG-23/24/25) | `npm test` green |
+| 2 | `dd2598c` | Memory & performance (P2-MEM-07/08, P2-PERF-09/12, P3-PERF-35/36/37/38/40) | `npm test` green |
+| 3 | `f0d5ca0` | Security hardening (P2-SEC-04/05/06) | `npm test` green |
+| 4 | `9093e32` | Dead code removal (modules, exports, artifacts, duplicate `disposables.push`) | `npm test` green |
+| 5 | `76bda84` | Clean code (P3-CLEAN-43..47); first ESLint config (`.eslintrc.json`) — 97 pre-existing violations fixed to 0 | `tsc` 0 errors, `npm run lint` 0 problems, unit **887/887**, integration **53/53** |
+| 6 | `09c0825` | Latent-finding sweep (P3-LOG-26/29/30/31/32/33/34, P3-PERF-39/41) | `tsc` 0 errors, `npm run lint` 0 problems, unit **887/887**, integration **53/53** |
+
+All plan phases (1-5) and the Phase 6 latent sweep are complete. `npm run lint` and `npm test` were re-run after every phase per the checklist.
+
+---
+
+*Report generated from a read-only audit pass. Line numbers refer to the audit-time working tree; post-audit changes are recorded in the remediation ledger (§4) and the per-phase commits listed there.*
