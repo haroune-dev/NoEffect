@@ -6,7 +6,7 @@
   "publisher": "haroune-dev",
   "preview": true,
   "license": "PolyForm-Noncommercial-1.0.0",
-  "icon": "./images/icon.png",
+  "icon": "./assets/images/icon.png",
   "galleryBanner": {
     "color": "#1E1E1E",
     "theme": "dark"
