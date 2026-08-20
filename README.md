@@ -10,7 +10,7 @@
 
 ## Demo
 
-![NoEffect demo](https://raw.githubusercontent.com/haroune-dev/NoEffect/main/assets/demo/demo.gif)
+![NoEffect demo](https://raw.githubusercontent.com/haroune-dev/NoEffect/master/assets/demo/demo.gif)
 
 *Inactive declarations are dimmed and flagged inline, with a DevTools-style tooltip explaining why.*
 
