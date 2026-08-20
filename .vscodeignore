@@ -28,6 +28,9 @@ scripts/**
 reference/**
 assets/gutter/yellow-triangle.svg
 
+# README demo GIF — served from the GitHub repository, never needed at runtime.
+assets/demo/**
+
 # Build artifacts that never ship
 **/*.map
 dist/*.meta.json

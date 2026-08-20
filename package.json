@@ -7,6 +7,14 @@
   "preview": true,
   "license": "PolyForm-Noncommercial-1.0.0",
   "icon": "./assets/icon/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/haroune-dev/NoEffect.git"
+  },
+  "bugs": {
+    "url": "https://github.com/haroune-dev/NoEffect/issues"
+  },
+  "homepage": "https://github.com/haroune-dev/NoEffect#readme",
   "galleryBanner": {
     "color": "#1E1E1E",
     "theme": "dark"
