@@ -138,7 +138,7 @@ export class DecorationManager {
           margin: '0 0 0 4px',
           width: '14px',
           height: '14px',
-          textDecoration: 'none; cursor: pointer;',
+          textDecoration: 'none',
         },
         rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
       });
