@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 import { NoEffectSettings } from '../config/settings';
 import { CssIssue } from '../models/cssIssue';
 import { CssLocation } from '../models/cssLocation';
@@ -98,6 +99,15 @@ export class DecorationManager {
     this.appliedSignatures.clear();
 
     const inlineIconPath = path.join(this.extensionPath, 'assets', 'inline', 'warning-icon.svg');
+    // VS Code silently renders nothing for a contentIconPath/gutterIconPath
+    // that points at a missing file — surface the packaging bug loudly instead.
+    if (!fs.existsSync(inlineIconPath)) {
+      logger.warn(
+        `Inline warning icon missing at ${inlineIconPath} — ` +
+        `the icon decoration will not render. The VSIX payload is broken: ` +
+        `assets/inline/warning-icon.svg must ship (check .vscodeignore).`
+      );
+    }
 
     // Override-winner gutter badge (`→|`). The public API has no themable
     // `gutterIconPath` (string | Uri only), so the light/dark SVG variant

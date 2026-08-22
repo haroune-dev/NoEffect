@@ -95,6 +95,15 @@ export class BrowserRunner {
         `Timed out waiting for Chromium CDP endpoint (${chromiumPath})`
       );
     } catch (err) {
+      // Make silent-launch failures diagnosable: attach what the browser
+      // actually printed (bounded, redacted) before rethrowing.
+      if (err instanceof Error && err.name === 'AnalysisTimeoutError') {
+        const tail =
+          this.stderrTailLines.length > 0
+            ? this.stderrTailLines.join(' | ')
+            : '<no output captured>';
+        err.message = `${err.message} — browser output: ${tail}`;
+      }
       // A failed launch must not leave a stray browser behind.
       await killProcessTree(pid);
       await this.discardProfile();
@@ -124,6 +133,13 @@ export class BrowserRunner {
         return;
       }
 
+      // Chromium emits "DevTools listening on ws://…" once the debugging
+      // socket is bound. Output MUST be accumulated across chunks — a chunk
+      // boundary can split the line mid-match — and the captured URL must be
+      // whitespace-trimmed: on Windows lines end with \r\n, and a trailing
+      // \r silently breaks the WebSocket connection.
+      const bufferMax = 8 * 1024;
+      let pending = '';
       const onData = (data: Buffer) => {
         const text = data.toString();
         // Bounded, redacted stderr excerpt for diagnostics.
@@ -135,9 +151,14 @@ export class BrowserRunner {
             }
           }
         }
-        const match = text.match(/DevTools listening on (ws:\/\/.*)\n/);
+        pending += text;
+        if (pending.length > bufferMax) {
+          pending = pending.slice(-bufferMax);
+        }
+        const match = pending.match(/DevTools listening on\s+(ws:\/\/\S+)/);
         if (match) {
-          resolveWith(match[1]);
+          pending = '';
+          resolveWith(match[1].trim());
         }
       };
       child.stderr?.on('data', onData);

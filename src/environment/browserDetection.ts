@@ -8,7 +8,9 @@
  *
  *   - the user-configured `noEffect.chromiumPath` override is checked first,
  *     validated (exists + executable), then confirmed with a lightweight
- *     `--version` probe (bounded by a timeout),
+ *     `--version` probe (bounded by a timeout; on Windows an existence
+ *     check replaces the probe — desktop chrome.exe/msedge.exe do not
+ *     answer `--version` usefully),
  *   - otherwise platform-appropriate common install locations and PATH
  *     executables are probed in a deterministic order,
  *   - results are cached until `invalidate()` (settings change) or an
@@ -198,7 +200,7 @@ export class BrowserDetector {
       if (absolute && !this.existsSync(candidate)) {
         continue;
       }
-      if (await this.probeVersion(candidate, options.token)) {
+      if (await this.isUsable(candidate, options.token)) {
         const result: BrowserDetectionResult = {
           status: 'found',
           executablePath: candidate,
@@ -245,7 +247,7 @@ export class BrowserDetector {
       };
     }
 
-    if (await this.probeVersion(overridePath, token)) {
+    if (await this.isUsable(overridePath, token)) {
       return {
         status: 'found',
         executablePath: overridePath,
@@ -265,6 +267,25 @@ export class BrowserDetector {
   }
 
   /**
+   * Usability check for one candidate executable.
+   *
+   * On Windows the classic `--version` probe is useless: desktop
+   * chrome.exe/msedge.exe print nothing for `--version`, may stay alive
+   * forwarding to an existing instance, and — run headed with no profile
+   * isolation — can open a visible browser window while it hangs. The
+   * bounded probe then times out and a working install is reported as
+   * missing. Windows therefore validates by file existence (the real
+   * launch surfaces any deeper problem, with diagnosable output);
+   * POSIX keeps the live `--version` probe.
+   */
+  private async isUsable(executablePath: string, token?: CancellationTokenLike): Promise<boolean> {
+    if (this.platform === 'win32') {
+      return this.existsSync(executablePath);
+    }
+    return this.probeVersion(executablePath, token);
+  }
+
+  /**
    * Lightweight `--version` probe: spawn with an argument array (never a
    * shell), bounded by a timeout, then kill. Exit code 0 = usable.
    */
@@ -272,7 +293,8 @@ export class BrowserDetector {
     return new Promise((resolve) => {
       let settled = false;
       let child: ChildProcess | null = null;
-      let cancelSub: { dispose(): void } | undefined;
+      const cancelSub: { dispose(): void } | undefined =
+        token?.onCancellationRequested(() => finish(false));
 
       const finish = (usable: boolean) => {
         if (!settled) {
@@ -285,7 +307,6 @@ export class BrowserDetector {
       };
 
       const timer = setTimeout(() => finish(false), this.versionTimeoutMs);
-      cancelSub = token?.onCancellationRequested(() => finish(false));
 
       try {
         child = this.spawnFn(executablePath, ['--version'], {

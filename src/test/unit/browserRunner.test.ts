@@ -85,3 +85,57 @@ test('recordFound-level confirmation is exercised via a successful launch', asyn
   assert.equal(runner.isRunning, false);
   assert.ok(calls.length > 0);
 });
+
+/**
+ * A spawn stub that emits caller-provided output chunks on its streams
+ * (simulating real Chromium startup bytes, including CRLF endings and
+ * chunk boundaries that split the endpoint line).
+ */
+function stubSpawnEmitting(chunks: Buffer[]) {
+  const spawnFn = (_cmd: string, _args: string[], _opts: unknown): unknown => {
+    const child = new EventEmitter() as EventEmitter & { pid?: number; kill(): void } & {
+      stdout: EventEmitter;
+      stderr: EventEmitter;
+    };
+    child.pid = 4242;
+    child.kill = () => {};
+    child.stdout = child;
+    child.stderr = child;
+    let i = 0;
+    const emitNext = () => {
+      if (i < chunks.length) {
+        child.emit('data', chunks[i]);
+        i += 1;
+        process.nextTick(emitNext);
+      }
+    };
+    process.nextTick(emitNext);
+    return child;
+  };
+  return { spawnFn: spawnFn as unknown as typeof spawn };
+}
+
+test('Windows CRLF output: the captured CDP URL has no trailing carriage return', async () => {
+  const { spawnFn } = stubSpawnEmitting([
+    Buffer.from(`DevTools listening on ${DEBUG_URL}\r\n`),
+  ]);
+  const runner = new BrowserRunner({ spawnFn, tempDirFn });
+
+  const url = await runner.launch('/usr/bin/chromium');
+
+  assert.equal(url, DEBUG_URL);
+  await runner.shutdown();
+});
+
+test('the endpoint line split across chunks is still matched', async () => {
+  const { spawnFn } = stubSpawnEmitting([
+    Buffer.from('[ERROR] some noise\nDevTools listening'),
+    Buffer.from(` on ${DEBUG_URL}\n`),
+  ]);
+  const runner = new BrowserRunner({ spawnFn, tempDirFn });
+
+  const url = await runner.launch('/usr/bin/chromium');
+
+  assert.equal(url, DEBUG_URL);
+  await runner.shutdown();
+});

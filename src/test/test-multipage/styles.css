@@ -15,4 +15,5 @@
 .secondary-only {
   display: block;
   justify-content: space-between; /*  inactive: present only in about.html and ignored in block context */
+  
 }

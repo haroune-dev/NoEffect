@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { spawn } from 'node:child_process';
+import * as path from 'node:path';
 import { BrowserDetector } from '../../environment/browserDetection';
 import { CancellationTokenLike } from '../../failure/cancellation';
 
@@ -148,4 +149,64 @@ test('a cancelled probe aborts detection without caching the result', async () =
   assert.equal(result.status, 'not_attempted');
   assert.ok(result.message.includes('cancelled'));
   assert.equal(detector.getCachedResult().status, 'not_attempted');
+});
+
+const WIN_CHROME = path.join(
+  'C:\\Program Files',
+  'Google',
+  'Chrome',
+  'Application',
+  'chrome.exe'
+);
+
+test('win32: an existing executable is found WITHOUT a --version probe', async () => {
+  // Desktop chrome.exe/msedge.exe do not answer `--version` usefully on
+  // Windows: the probe hangs, times out (reporting a working install as
+  // missing) and — run headed with no profile isolation — opens a visible
+  // browser window. Windows detection must therefore never spawn.
+  const { spawnFn, probed } = stubSpawn('hang');
+  const detector = new BrowserDetector({
+    platform: 'win32',
+    existsSync: (p) => p === WIN_CHROME,
+    spawnFn,
+    env: {},
+  });
+
+  const result = await detector.detect({ overridePath: WIN_CHROME });
+
+  assert.equal(result.status, 'found');
+  assert.equal(result.executablePath, WIN_CHROME);
+  assert.equal(probed.length, 0);
+});
+
+test('win32: auto-detection finds an installed browser without spawning anything', async () => {
+  const { spawnFn, probed } = stubSpawn('hang');
+  const detector = new BrowserDetector({
+    platform: 'win32',
+    existsSync: (p) => p === WIN_CHROME,
+    spawnFn,
+    env: { PROGRAMFILES: 'C:\\Program Files' },
+  });
+
+  const result = await detector.detect();
+
+  assert.equal(result.status, 'found');
+  assert.equal(result.executablePath, WIN_CHROME);
+  assert.equal(probed.length, 0);
+});
+
+test('win32: a missing executable still resolves to not_found', async () => {
+  const { spawnFn, probed } = stubSpawn('hang');
+  const detector = new BrowserDetector({
+    platform: 'win32',
+    existsSync: () => false,
+    spawnFn,
+    env: {},
+  });
+
+  const result = await detector.detect();
+
+  assert.equal(result.status, 'launch_failed');
+  assert.equal(detector.getCachedResult().status, 'launch_failed');
+  void probed;
 });
