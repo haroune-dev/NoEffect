@@ -126,7 +126,7 @@ function sameSelection(a: SelectionShape, b: SelectionShape): boolean {
  * badge can never outlive its first genuine selection change.
  */
 export class TransientBadgeDismissalGate {
-  private placement: SelectionShape | null;
+  private readonly placement: SelectionShape;
 
   constructor(placement: SelectionShape) {
     this.placement = placement;
@@ -137,13 +137,9 @@ export class TransientBadgeDismissalGate {
    * shapes). Returns `true` when the badge must be dismissed.
    */
   consume(selections: SelectionShape[]): boolean {
-    if (this.placement) {
-      const isPlacement =
-        selections.length === 1 && sameSelection(selections[0], this.placement);
-      this.placement = null;
-      return !isPlacement;
-    }
-    return true;
+    const isPlacement =
+      selections.length === 1 && sameSelection(selections[0], this.placement);
+    return !isPlacement;
   }
 }
 

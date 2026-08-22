@@ -28,10 +28,10 @@ test('the gate keeps the badge for its own jump placement event', () => {
   assert.equal(gate.consume([PLACEMENT]), false, 'the placement event is not a dismissal');
 });
 
-test('the placement token is consumed once — a repeat of the same selection dismisses', () => {
+test('repeated events at the placement position (e.g. Windows focus/hover events) keep the badge visible', () => {
   const gate = new TransientBadgeDismissalGate(PLACEMENT);
-  gate.consume([PLACEMENT]);
-  assert.equal(gate.consume([PLACEMENT]), true);
+  assert.equal(gate.consume([PLACEMENT]), false);
+  assert.equal(gate.consume([PLACEMENT]), false);
 });
 
 test('any first event other than the placement dismisses immediately', () => {
@@ -53,9 +53,9 @@ test('a multi-selection event never matches the single-placement token', () => {
   assert.equal(gate.consume([PLACEMENT, selection(0, 0)]), true);
 });
 
-test('every event after the placement is a dismissal', () => {
+test('subsequent selection changes away from placement trigger dismissal', () => {
   const gate = new TransientBadgeDismissalGate(PLACEMENT);
-  gate.consume([PLACEMENT]);
+  assert.equal(gate.consume([PLACEMENT]), false);
   assert.equal(gate.consume([selection(10, 0)]), true);
   assert.equal(gate.consume([selection(11, 0)]), true);
   assert.equal(gate.consume([selection(12, 5)]), true);
