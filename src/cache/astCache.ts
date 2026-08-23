@@ -16,6 +16,7 @@ import * as fs from 'fs';
 import * as crypto from 'crypto';
 import { CssRule, CssAstParser } from '../parser/cssAst';
 import { logger } from '../utils/logger';
+import { normalizeFsPath } from '../utils/pathUtils';
 
 export interface AstCacheEntry {
   /** Parsed rules for the cached content. */
@@ -51,31 +52,32 @@ class AstCache {
    * the read throws as it always did.
    */
   getOrParse(filePath: string): AstCacheEntry {
-    const cached = this.entries.get(filePath);
+    const normPath = normalizeFsPath(filePath);
+    const cached = this.entries.get(normPath);
     if (cached) {
       let stat: fs.Stats | null = null;
       try {
-        stat = fs.statSync(filePath);
+        stat = fs.statSync(normPath);
       } catch {
-        this.entries.delete(filePath);
+        this.entries.delete(normPath);
       }
       if (stat && stat.size === cached.size && stat.mtimeMs === cached.mtimeMs) {
         this.hits++;
-        logger.debug(`[AST Cache] Hit: ${filePath}`);
+        logger.debug(`[AST Cache] Hit: ${normPath}`);
         return { rules: cached.rules, hash: cached.hash, hit: true };
       }
     }
 
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const content = fs.readFileSync(normPath, 'utf-8');
     const hash = this.hash(content);
 
     if (cached && cached.hash === hash) {
       // Identical bytes rewritten: not a content change — the cached
       // parse stays valid, only the on-disk identity is refreshed.
       this.hits++;
-      logger.debug(`[AST Cache] Hit: ${filePath}`);
-      const stat = this.statOf(filePath);
-      this.entries.set(filePath, {
+      logger.debug(`[AST Cache] Hit: ${normPath}`);
+      const stat = this.statOf(normPath);
+      this.entries.set(normPath, {
         hash,
         rules: cached.rules,
         size: stat?.size ?? -1,
@@ -85,10 +87,10 @@ class AstCache {
     }
 
     this.misses++;
-    logger.debug(`[AST Cache] Miss: ${filePath}`);
-    const rules = new CssAstParser().parse(content, filePath);
-    const stat = this.statOf(filePath);
-    this.entries.set(filePath, {
+    logger.debug(`[AST Cache] Miss: ${normPath}`);
+    const rules = new CssAstParser().parse(content, normPath);
+    const stat = this.statOf(normPath);
+    this.entries.set(normPath, {
       hash,
       rules,
       size: stat?.size ?? -1,

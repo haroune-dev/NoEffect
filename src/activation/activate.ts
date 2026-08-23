@@ -10,6 +10,7 @@ import { defaultLifecycle } from '../browser/lifecycleManager';
 import { browserDetector } from '../environment/browserDetection';
 import { companionCache } from '../cache/companionCache';
 import { companionSettings } from '../services/companionSettings';
+import { normalizeFsPath } from '../utils/pathUtils';
 import {
   companionContextFingerprintFor,
   STALE_CONTEXT_FINGERPRINT,
@@ -267,8 +268,10 @@ export function activateExtension(context: vscode.ExtensionContext): vscode.Disp
   // its workspace folder (multi-root aware); without one the resolver falls
   // back to the bounded ancestor chain (LCA). File, workspace-folder and
   // settings changes invalidate the resolution cache.
-  companionSettings.workspaceFolderProvider = (fsPath) =>
-    vscode.workspace.getWorkspaceFolder(vscode.Uri.file(fsPath))?.uri.fsPath ?? null;
+  companionSettings.workspaceFolderProvider = (fsPath) => {
+    const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(fsPath));
+    return folder ? normalizeFsPath(folder.uri.fsPath) : null;
+  };
 
   // A CSS-file event must NOT reset the resolution cache: companions are
   // HTML documents that link the stylesheet, so a CSS create/change/delete
@@ -464,18 +467,19 @@ export function activateExtension(context: vscode.ExtensionContext): vscode.Disp
    * identity).
    */
   const canSkipReanalysis = (filePath: string, contentHashNow: string): boolean => {
-    if (filePath.toLowerCase().endsWith('.css')) {
-      const contextFingerprint = companionContextFingerprintFor(filePath);
+    const normPath = normalizeFsPath(filePath);
+    if (normPath.toLowerCase().endsWith('.css')) {
+      const contextFingerprint = companionContextFingerprintFor(normPath);
       if (contextFingerprint === STALE_CONTEXT_FINGERPRINT) {
         return false;
       }
       return sessionManager.shouldSkipReanalysisWithContext(
-        filePath,
+        normPath,
         contentHashNow,
         contextFingerprint
       );
     }
-    return sessionManager.shouldSkipReanalysisWithContext(filePath, contentHashNow, null);
+    return sessionManager.shouldSkipReanalysisWithContext(normPath, contentHashNow, null);
   };
 
   const editorSwitchDebouncer = new Debouncer(EDITOR_SWITCH_DEBOUNCE_MS);
@@ -486,7 +490,7 @@ export function activateExtension(context: vscode.ExtensionContext): vscode.Disp
     if (!editor || !getSettings().enabled) {
       return;
     }
-    const filePath = editor.document.uri.fsPath;
+    const filePath = normalizeFsPath(editor.document.uri.fsPath);
     if (!isSupportedFile(filePath)) {
       return;
     }

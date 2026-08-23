@@ -10,6 +10,7 @@
 import * as fs from 'fs';
 import * as crypto from 'crypto';
 import { logger } from '../utils/logger';
+import { normalizeFsPath } from '../utils/pathUtils';
 
 export interface FileHashEntry {
   /** SHA-256 of the file contents. */
@@ -46,20 +47,21 @@ class FileHashCache {
    * thread (P2-PERF-09). A vanished file drops its entry lazily.
    */
   getOrRead(filePath: string): FileHashEntry {
-    const cached = this.entries.get(filePath);
+    const normPath = normalizeFsPath(filePath);
+    const cached = this.entries.get(normPath);
     if (cached) {
       let stat: fs.Stats | null = null;
       try {
-        stat = fs.statSync(filePath);
+        stat = fs.statSync(normPath);
       } catch {
         // The file vanished — lazily drop the stale entry (P2-MEM-07) and
         // fall through to the read, which throws as it always did; callers
         // decide how to degrade.
-        this.entries.delete(filePath);
+        this.entries.delete(normPath);
       }
       if (stat && stat.size === cached.size && stat.mtimeMs === cached.mtimeMs) {
         this.hits++;
-        logger.debug(`[FileHash Cache] Hit: ${filePath}`);
+        logger.debug(`[FileHash Cache] Hit: ${normPath}`);
         return { hash: cached.hash, hit: true };
       }
     }
@@ -67,7 +69,7 @@ class FileHashCache {
     // The gate did not hit: either the file looks changed or it is new.
     const hash = crypto
       .createHash('sha256')
-      .update(fs.readFileSync(filePath, 'utf-8'), 'utf-8')
+      .update(fs.readFileSync(normPath, 'utf-8'), 'utf-8')
       .digest('hex');
 
     if (cached?.hash === hash) {
@@ -75,15 +77,15 @@ class FileHashCache {
       // content change — a hit (no miss is recorded for it), with the
       // fresh stat stored below.
       this.hits++;
-      logger.debug(`[FileHash Cache] Hit after identical rewrite: ${filePath}`);
+      logger.debug(`[FileHash Cache] Hit after identical rewrite: ${normPath}`);
     } else {
       this.misses++;
-      logger.debug(`[FileHash Cache] Miss: ${filePath}`);
+      logger.debug(`[FileHash Cache] Miss: ${normPath}`);
     }
 
     let stat: fs.Stats | null = null;
     try {
-      stat = fs.statSync(filePath);
+      stat = fs.statSync(normPath);
     } catch {
       // The file vanished between read and stat — keep only the hash; the
       // next probe re-reads.
@@ -93,7 +95,7 @@ class FileHashCache {
       size: stat?.size ?? -1,
       mtimeMs: stat?.mtimeMs ?? -1,
     };
-    this.entries.set(filePath, identity);
+    this.entries.set(normPath, identity);
     return { hash, hit: cached?.hash === hash };
   }
 

@@ -19,6 +19,7 @@
 
 import * as path from 'path';
 import { contentHash } from '../utils/contentHash';
+import { normalizeFsPath } from '../utils/pathUtils';
 import { CompanionResolution } from '../services/companionResolver';
 import { companionCache } from '../cache/companionCache';
 import { companionSettings } from '../services/companionSettings';
@@ -70,7 +71,7 @@ export interface AnalysisContextInput {
 export function analysisContextFingerprint(input: AnalysisContextInput): string {
   const selected = input.resolutions ?? [];
   const entries = selected.map((resolution, index) => {
-    const canonical = path.resolve(resolution.htmlPath);
+    const canonical = normalizeFsPath(path.resolve(resolution.htmlPath));
     const hash = input.companionHashes[index] ?? '';
     return `${canonical}|${hash}`;
   });
@@ -90,9 +91,9 @@ export function analysisContextFingerprint(input: AnalysisContextInput): string 
  * must re-resolve before trusting any fingerprint.
  */
 export function companionContextFingerprintFor(cssPath: string): string {
-  const cssReal = path.normalize(path.resolve(cssPath));
-  const primaryRoot =
-    companionSettings.workspaceFolderProvider?.(cssPath) ?? path.dirname(cssReal);
+  const cssReal = normalizeFsPath(path.resolve(cssPath));
+  const rawRoot = companionSettings.workspaceFolderProvider?.(cssPath);
+  const primaryRoot = rawRoot ? normalizeFsPath(rawRoot) : path.dirname(cssReal);
   const entry = companionCache.getValidatedEntry(`${primaryRoot}|${cssReal}`);
   if (!entry) {
     return STALE_CONTEXT_FINGERPRINT;

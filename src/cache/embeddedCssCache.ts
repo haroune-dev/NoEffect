@@ -30,6 +30,7 @@ import { CssAstParser, CssDeclaration, CssRule, CssSourceRange } from '../parser
 import { HtmlCssFragments, scanHtmlForCss } from '../parser/htmlScanner';
 import { LocalDeclarationMatch } from '../matcher/declarationMapper';
 import { logger } from '../utils/logger';
+import { normalizeFsPath } from '../utils/pathUtils';
 
 /** A parsed `<style>` block: rules whose ranges are already document-relative. */
 export interface ParsedStyleBlock {
@@ -120,33 +121,34 @@ class HtmlFragmentCache {
   private static readonly LIMIT = 256;
 
   getOrParse(filePath: string): HtmlFragmentCacheEntry {
-    const cached = this.entries.get(filePath);
+    const normPath = normalizeFsPath(filePath);
+    const cached = this.entries.get(normPath);
     if (cached) {
       let stat: fs.Stats | null = null;
       try {
-        stat = fs.statSync(filePath);
+        stat = fs.statSync(normPath);
       } catch {
-        this.entries.delete(filePath);
+        this.entries.delete(normPath);
       }
       // Cheap freshness gate: an unchanged size+mtime means the cached
       // fragment scan is still the truth — no read, no hash (P2-PERF-09).
       if (stat && stat.size === cached.size && stat.mtimeMs === cached.mtimeMs) {
         this.hits++;
-        logger.debug(`[HTML Cache] Hit: ${filePath}`);
+        logger.debug(`[HTML Cache] Hit: ${normPath}`);
         return { fragments: cached.fragments, hash: cached.hash, hit: true, content: cached.content };
       }
     }
 
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const content = fs.readFileSync(normPath, 'utf-8');
     const contentHash = hash(content);
 
     if (cached && cached.hash === contentHash) {
       // Identical bytes rewritten: not a content change — reuse the cached
       // scan, refresh the on-disk identity.
       this.hits++;
-      logger.debug(`[HTML Cache] Hit: ${filePath}`);
-      const stat = statOf(filePath);
-      this.entries.set(filePath, {
+      logger.debug(`[HTML Cache] Hit: ${normPath}`);
+      const stat = statOf(normPath);
+      this.entries.set(normPath, {
         hash: contentHash,
         fragments: cached.fragments,
         content,
@@ -157,11 +159,11 @@ class HtmlFragmentCache {
     }
 
     this.misses++;
-    logger.debug(`[HTML Cache] Miss: ${filePath}`);
+    logger.debug(`[HTML Cache] Miss: ${normPath}`);
     const fragments = scanHtmlForCss(content);
     evictOldest(this.entries, HtmlFragmentCache.LIMIT);
-    const stat = statOf(filePath);
-    this.entries.set(filePath, {
+    const stat = statOf(normPath);
+    this.entries.set(normPath, {
       hash: contentHash,
       fragments,
       content,
@@ -201,16 +203,17 @@ class EmbeddedParseCache {
    * the key covers both, so any content change rebuilds the entry.
    */
   getOrParse(htmlPath: string, htmlHash: string, fragments: HtmlCssFragments): EmbeddedCssParse {
-    const key = `${htmlPath}|${htmlHash}`;
+    const normPath = normalizeFsPath(htmlPath);
+    const key = `${normPath}|${htmlHash}`;
     const cached = this.entries.get(key);
     if (cached) {
       this.hits++;
-      logger.debug(`[Embedded Parse Cache] Hit: ${htmlPath}`);
+      logger.debug(`[Embedded Parse Cache] Hit: ${normPath}`);
       return cached.parse;
     }
 
     this.misses++;
-    logger.debug(`[Embedded Parse Cache] Miss: ${htmlPath}`);
+    logger.debug(`[Embedded Parse Cache] Miss: ${normPath}`);
 
     const parser = new CssAstParser();
     const blocks: ParsedStyleBlock[] = fragments.styleBlocks.map((block) => ({
@@ -303,7 +306,7 @@ export function inlineMappingKey(
   occurrenceIndex: number = 0
 ): string {
   return [
-    htmlPath,
+    normalizeFsPath(htmlPath),
     htmlHash,
     String(fragmentIndex),
     propertyName,

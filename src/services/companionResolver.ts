@@ -44,6 +44,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { DEFAULT_IGNORED_PATTERNS, matchGlobPattern } from '../environment/fileEligibility';
 import { logger } from '../utils/logger';
+import { normalizeFsPath, pathEquals } from '../utils/pathUtils';
 import { companionSettings } from './companionSettings';
 import { resolveLocalPath, toServedPath } from './companionUrl';
 
@@ -170,7 +171,7 @@ function extractAttrs(tag: string): Map<string, string> {
 
 /** The absolute, normalized path of the analyzed CSS file. */
 function cssRealPath(cssFilePath: string): string {
-  return path.normalize(path.resolve(cssFilePath));
+  return normalizeFsPath(path.resolve(cssFilePath));
 }
 
 /** Whether a path matches any ignore glob (directories and files alike). */
@@ -297,7 +298,7 @@ async function matchRoot(
         if (resolved === null) {
           continue;
         }
-        if (path.normalize(resolved) === cssReal) {
+        if (pathEquals(resolved, cssReal)) {
           matches.push({
             htmlPath: full,
             href,
@@ -366,7 +367,9 @@ function classifyKind(href: string, baseHref?: string): CompanionHrefKind {
 
 /** Directory distance: path segments between two directories (0 = equal). */
 export function dirDistance(fromDir: string, toDir: string): number {
-  const rel = path.relative(path.resolve(fromDir), path.resolve(toDir));
+  const normFrom = normalizeFsPath(path.resolve(fromDir));
+  const normTo = normalizeFsPath(path.resolve(toDir));
+  const rel = path.relative(normFrom, normTo);
   if (rel === '') {
     return 0;
   }

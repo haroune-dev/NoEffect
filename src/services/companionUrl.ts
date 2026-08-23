@@ -22,6 +22,7 @@
  */
 
 import * as path from 'path';
+import { normalizeFsPath } from '../utils/pathUtils';
 
 /** Neutral origin used only for URL math (never contacted). */
 const ORIGIN = 'http://noeffect.local';
@@ -31,8 +32,8 @@ const ORIGIN = 'http://noeffect.local';
  * (`/pages/index.html`). Returns null when the file lies outside the root.
  */
 export function toServedPath(serverRoot: string, absolutePath: string): string | null {
-  const root = path.resolve(serverRoot);
-  const abs = path.resolve(absolutePath);
+  const root = normalizeFsPath(path.resolve(serverRoot));
+  const abs = normalizeFsPath(path.resolve(absolutePath));
   const rel = path.relative(root, abs);
   if (rel === '') {
     return '/';
@@ -77,13 +78,23 @@ export function fromServedPath(serverRoot: string, requestUrl: string): string |
     return null;
   }
 
-  const root = path.resolve(serverRoot);
-  const candidate = path.resolve(root, relative);
+  const root = normalizeFsPath(path.resolve(serverRoot));
+  const candidate = normalizeFsPath(path.resolve(root, relative));
   // `root + path.sep` becomes `//` for the filesystem root; a `serverRoot`
   // of `/` must contain everything, not reject every request (P3-LOG-33).
   const containmentPrefix = root === path.sep ? root : root + path.sep;
-  if (candidate !== root && !candidate.startsWith(containmentPrefix)) {
-    return null;
+
+  if (process.platform === 'win32') {
+    const normCandidate = candidate.toLowerCase();
+    const normRoot = root.toLowerCase();
+    const normPrefix = containmentPrefix.toLowerCase();
+    if (normCandidate !== normRoot && !normCandidate.startsWith(normPrefix)) {
+      return null;
+    }
+  } else {
+    if (candidate !== root && !candidate.startsWith(containmentPrefix)) {
+      return null;
+    }
   }
   return candidate;
 }
@@ -146,5 +157,5 @@ export function resolveLocalPath(input: LocalHrefResolutionInput): string | null
     decoded.push(part);
   }
 
-  return path.join(path.resolve(input.serverRoot), ...decoded);
+  return normalizeFsPath(path.join(path.resolve(input.serverRoot), ...decoded));
 }

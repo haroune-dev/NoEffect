@@ -1,4 +1,5 @@
 import { logger } from '../utils/logger';
+import { normalizeFsPath, pathEquals } from '../utils/pathUtils';
 import { AnalysisResult, CssIssue } from '../models';
 
 /**
@@ -135,11 +136,12 @@ export class SessionManager implements CssGlobalOutcomeStore {
    * the multi-companion flow); everything else reads htmlEmbedded.
    */
   getIssuesForFile(filePath: string): CssIssue[] | undefined {
-    const lower = filePath.toLowerCase();
+    const normPath = normalizeFsPath(filePath);
+    const lower = normPath.toLowerCase();
     if (lower.endsWith('.css')) {
-      return this.cssGlobal.get(filePath)?.issues;
+      return this.cssGlobal.get(normPath)?.issues;
     }
-    return this.htmlEmbedded.get(filePath)?.issues;
+    return this.htmlEmbedded.get(normPath)?.issues;
   }
 
   /**
@@ -183,9 +185,10 @@ export class SessionManager implements CssGlobalOutcomeStore {
     contentFingerprint: string,
     contextFingerprint: string | null
   ): void {
-    this.lastRecordedRun = { filePath, contentFingerprint, contextFingerprint };
+    const normPath = normalizeFsPath(filePath);
+    this.lastRecordedRun = { filePath: normPath, contentFingerprint, contextFingerprint };
     logger.info(
-      `[Session] Recorded analysis of ${filePath} ` +
+      `[Session] Recorded analysis of ${normPath} ` +
         `(content ${contentFingerprint.slice(0, 8)}…, context ${contextFingerprint ?? 'html'})`
     );
   }
@@ -204,7 +207,7 @@ export class SessionManager implements CssGlobalOutcomeStore {
     const recorded = this.lastRecordedRun;
     return (
       recorded !== null &&
-      recorded.filePath === filePath &&
+      pathEquals(recorded.filePath, filePath) &&
       recorded.contentFingerprint === contentFingerprint &&
       recorded.contextFingerprint === contextFingerprint
     );
@@ -259,24 +262,26 @@ export class SessionManager implements CssGlobalOutcomeStore {
     if (namespace) {
       if (result.success) {
         if (namespace.kind === 'cssGlobal') {
-          this.cssGlobal.set(namespace.cssPath, {
+          const normPath = normalizeFsPath(namespace.cssPath);
+          this.cssGlobal.set(normPath, {
             contentFingerprint: namespace.contentFingerprint,
             contextFingerprint: namespace.contextFingerprint,
             epoch: namespace.epoch,
             issues: result.issues,
           });
           logger.info(
-            `[Session] cssGlobal[${namespace.cssPath}] recorded ` +
+            `[Session] cssGlobal[${normPath}] recorded ` +
               `(${result.issues.length} issue(s), epoch ${namespace.epoch})`
           );
         } else {
-          this.htmlEmbedded.set(namespace.htmlPath, {
+          const normPath = normalizeFsPath(namespace.htmlPath);
+          this.htmlEmbedded.set(normPath, {
             contentFingerprint: namespace.contentFingerprint,
             epoch: namespace.epoch,
             issues: result.issues,
           });
           logger.info(
-            `[Session] htmlEmbedded[${namespace.htmlPath}] recorded ` +
+            `[Session] htmlEmbedded[${normPath}] recorded ` +
               `(${result.issues.length} issue(s), epoch ${namespace.epoch})`
           );
         }
@@ -284,9 +289,9 @@ export class SessionManager implements CssGlobalOutcomeStore {
         // A failed/skipped run must never resurrect stale decorations: drop
         // the entry of the namespace it targeted.
         if (namespace.kind === 'cssGlobal') {
-          this.cssGlobal.delete(namespace.cssPath);
+          this.cssGlobal.delete(normalizeFsPath(namespace.cssPath));
         } else {
-          this.htmlEmbedded.delete(namespace.htmlPath);
+          this.htmlEmbedded.delete(normalizeFsPath(namespace.htmlPath));
         }
         logger.info(
           `[Session] ${namespace.kind === 'cssGlobal' ? 'cssGlobal' : 'htmlEmbedded'} ` +
@@ -357,7 +362,8 @@ export class SessionManager implements CssGlobalOutcomeStore {
     contextFingerprint: string,
     epoch: number
   ): CssIssue[] | undefined {
-    const entry = this.cssGlobal.get(cssPath);
+    const normPath = normalizeFsPath(cssPath);
+    const entry = this.cssGlobal.get(normPath);
     if (!entry) {
       return undefined;
     }
@@ -381,9 +387,10 @@ export class SessionManager implements CssGlobalOutcomeStore {
     epoch: number,
     issues: CssIssue[]
   ): void {
-    this.cssGlobal.set(cssPath, { contentFingerprint, contextFingerprint, epoch, issues });
+    const normPath = normalizeFsPath(cssPath);
+    this.cssGlobal.set(normPath, { contentFingerprint, contextFingerprint, epoch, issues });
     logger.info(
-      `[Session] cssGlobal[${cssPath}] recorded by the HTML flow ` +
+      `[Session] cssGlobal[${normPath}] recorded by the HTML flow ` +
         `(${issues.length} issue(s), epoch ${epoch})`
     );
   }

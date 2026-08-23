@@ -5,6 +5,7 @@ import { NoEffectSettings } from '../config/settings';
 import { CssIssue } from '../models/cssIssue';
 import { CssLocation } from '../models/cssLocation';
 import { logger } from '../utils/logger';
+import { normalizeFsPath, pathEquals } from '../utils/pathUtils';
 import { createInactivePropertyExplanation } from './inactivePropertyExplanation';
 import { planDecorations, signatureFromPlan } from './decorationPlanner';
 import { evidenceLine } from '../status/derive';
@@ -179,7 +180,7 @@ export class DecorationManager {
    * @param force - Re-apply even when the decoration state is unchanged
    */
   applyDecorations(editor: vscode.TextEditor, issues: CssIssue[], force: boolean = false): void {
-    const filePath = editor.document.uri.fsPath;
+    const filePath = normalizeFsPath(editor.document.uri.fsPath);
     this.lastIssues.set(filePath, issues);
 
     const plan = planDecorations(issues, filePath);
@@ -259,6 +260,7 @@ export class DecorationManager {
    * Remove all decorations from a specific editor.
    */
   clearDecorationsForEditor(editor: vscode.TextEditor): void {
+    const filePath = normalizeFsPath(editor.document.uri.fsPath);
     if (this.dimDecorationType) {
       editor.setDecorations(this.dimDecorationType, []);
     }
@@ -274,10 +276,10 @@ export class DecorationManager {
     if (this.transientBadge?.editor === editor) {
       this.transientBadge = null;
     }
-    this.decoratedFiles.delete(editor.document.uri.fsPath);
-    this.iconHoverEntries.delete(editor.document.uri.fsPath);
-    this.appliedSignatures.delete(editor.document.uri.fsPath);
-    this.lastIssues.delete(editor.document.uri.fsPath);
+    this.decoratedFiles.delete(filePath);
+    this.iconHoverEntries.delete(filePath);
+    this.appliedSignatures.delete(filePath);
+    this.lastIssues.delete(filePath);
     logger.info('[Decorations] Clearing decorations');
   }
 
@@ -287,17 +289,18 @@ export class DecorationManager {
    * ranges never remain visible.
    */
   clearDecorationsForFile(filePath: string): void {
+    const normPath = normalizeFsPath(filePath);
     const editor = vscode.window.visibleTextEditors.find(
-      (e) => e.document.uri.fsPath === filePath
+      (e) => pathEquals(e.document.uri.fsPath, normPath)
     );
 
     if (editor) {
       this.clearDecorationsForEditor(editor);
     } else {
-      this.decoratedFiles.delete(filePath);
-      this.iconHoverEntries.delete(filePath);
-      this.appliedSignatures.delete(filePath);
-      this.lastIssues.delete(filePath);
+      this.decoratedFiles.delete(normPath);
+      this.iconHoverEntries.delete(normPath);
+      this.appliedSignatures.delete(normPath);
+      this.lastIssues.delete(normPath);
       logger.info('[Decorations] Clearing decorations');
     }
   }
@@ -325,7 +328,8 @@ export class DecorationManager {
    */
   reapplyAllDecorations(): void {
     for (const editor of vscode.window.visibleTextEditors) {
-      const issues = this.lastIssues.get(editor.document.uri.fsPath);
+      const filePath = normalizeFsPath(editor.document.uri.fsPath);
+      const issues = this.lastIssues.get(filePath);
       if (issues) {
         this.applyDecorations(editor, issues, true);
       }
@@ -337,7 +341,7 @@ export class DecorationManager {
    * Returns whether the given file currently has decorations applied.
    */
   hasDecorations(filePath: string): boolean {
-    return this.decoratedFiles.has(filePath);
+    return this.decoratedFiles.has(normalizeFsPath(filePath));
   }
 
   /**
@@ -354,7 +358,8 @@ export class DecorationManager {
     document: vscode.TextDocument,
     position: vscode.Position
   ): vscode.Hover | undefined {
-    const entries = this.iconHoverEntries.get(document.uri.fsPath);
+    const filePath = normalizeFsPath(document.uri.fsPath);
+    const entries = this.iconHoverEntries.get(filePath);
     if (!entries) {
       return undefined;
     }

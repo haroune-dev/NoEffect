@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import { CssIssue, CssLocation } from '../models';
 import { IneffectivePropertyAnalyzer, AnalysisProvider } from './analyzer';
 import { logger } from '../utils/logger';
+import { normalizeFsPath } from '../utils/pathUtils';
 import { collectMatchedDeclarations, collectPseudoContent, collectDeclaredDisplay, collectPseudoTypes } from '../browser/matchedStylesCollector';
 import { PseudoBoxFacts } from '../engine/layoutContext';
 import { normalizeAndDeduplicate, markOverriddenDeclarations } from '../engine/declarationNormalizer';
@@ -2021,11 +2022,12 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
    * behavior, bit-identical for same-directory relative links).
    */
   private serverRootFor(filePath: string): string {
-    const providerRoot = companionSettings.workspaceFolderProvider?.(filePath);
+    const rawRoot = companionSettings.workspaceFolderProvider?.(filePath);
+    const providerRoot = rawRoot ? normalizeFsPath(rawRoot) : null;
     if (providerRoot && toServedPath(providerRoot, filePath) !== null) {
       return providerRoot;
     }
-    return path.dirname(filePath);
+    return normalizeFsPath(path.dirname(filePath));
   }
 
   /**
@@ -2039,9 +2041,9 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
    * `skipped` stay consistent between warm and cold runs.
    */
   private async resolveCompanionsFor(cssFilePath: string): Promise<CompanionResolution[] | null> {
-    const cssReal = path.normalize(path.resolve(cssFilePath));
-    const primaryRoot =
-      companionSettings.workspaceFolderProvider?.(cssFilePath) ?? path.dirname(cssReal);
+    const cssReal = normalizeFsPath(path.resolve(cssFilePath));
+    const rawRoot = companionSettings.workspaceFolderProvider?.(cssFilePath);
+    const primaryRoot = rawRoot ? normalizeFsPath(rawRoot) : path.dirname(cssReal);
     const cacheKey = `${primaryRoot}|${cssReal}`;
 
     const cached = companionCache.getValidated(cacheKey);
