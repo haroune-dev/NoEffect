@@ -149,8 +149,8 @@ export class DecorationManager {
           margin: '0 0 0 4px',
           width: '14px',
           height: '14px',
-          textDecoration: 'none',
-        },
+          textDecoration: 'none; cursor: pointer',
+        } as unknown as vscode.ThemableDecorationAttachmentRenderOptions,
         rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
       });
     }
@@ -364,15 +364,7 @@ export class DecorationManager {
       return undefined;
     }
 
-    const entry = entries.find(({ range }) => {
-      if (position.line !== range.start.line) {
-        return false;
-      }
-      return (
-        position.character >= range.start.character &&
-        position.character <= range.end.character + 4
-      );
-    });
+    const entry = entries.find(({ range }) => range.contains(position));
     if (!entry) {
       return undefined;
     }
