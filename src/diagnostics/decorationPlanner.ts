@@ -17,6 +17,7 @@
 import { CssIssue } from '../models';
 import { CssLocation } from '../models/cssLocation';
 import { logger } from '../utils/logger';
+import { pathEquals } from '../utils/pathUtils';
 
 /** A single issue ready to be rendered as an editor decoration. */
 export interface PlannedDecoration {
@@ -82,7 +83,7 @@ function anchorFromDeclarationEnd(declarationRange: CssLocation): CssLocation {
  * caller must clear any previously applied decorations.
  */
 export function planDecorations(issues: CssIssue[], filePath: string): PlannedDecoration[] {
-  const relevant = issues.filter((issue) => issue.location?.filePath === filePath);
+  const relevant = issues.filter((issue) => pathEquals(issue.location?.filePath, filePath));
 
   if (relevant.length === 0) {
     logger.info('[Decorations] No issues to display');

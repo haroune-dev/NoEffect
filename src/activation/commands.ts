@@ -7,6 +7,7 @@ import { SessionManager } from '../services/sessionManager';
 import { AnalysisRunner, RunRequest } from '../services/analysisRunner';
 import { AnalysisNamespace, CssIssue } from '../models';
 import { contentHash } from '../utils/contentHash';
+import { normalizeFsPath, pathEquals } from '../utils/pathUtils';
 import {
   companionContextFingerprintFor,
   STALE_CONTEXT_FINGERPRINT,
@@ -84,19 +85,20 @@ function applyDecorationsToOwners(
     if (!filePath) {
       continue;
     }
-    const list = issuesByFile.get(filePath) ?? [];
+    const norm = normalizeFsPath(filePath);
+    const list = issuesByFile.get(norm) ?? [];
     list.push(issue);
-    issuesByFile.set(filePath, list);
+    issuesByFile.set(norm, list);
   }
 
   decorationManager.applyDecorations(editor, issues);
 
   for (const visible of vscode.window.visibleTextEditors) {
     const filePath = visible.document.uri.fsPath;
-    if (filePath === editor.document.uri.fsPath) {
+    if (pathEquals(filePath, editor.document.uri.fsPath)) {
       continue;
     }
-    const owned = issuesByFile.get(filePath);
+    const owned = issuesByFile.get(normalizeFsPath(filePath));
     if (owned) {
       decorationManager.applyDecorations(visible, owned);
     }

@@ -391,7 +391,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
     defaultLifecycle.setVirtualFile(wrapperName, buildWrapperPage(selectors, `/${encodedFileName}`));
 
     const stylesheets: LocalStylesheet[] = [
-      { path: cssFilePath, hash: parsed.hash, changed: !parsed.hit, rules: parsed.rules },
+      { path: normalizeFsPath(cssFilePath), hash: parsed.hash, changed: !parsed.hit, rules: parsed.rules },
     ];
 
     // A real document linking this EXACT stylesheet gives the analysis
@@ -866,7 +866,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
     // and the block content hash distinguishes identical block texts at
     // different document offsets inside the mapping cache.
     const blockTargets: LocalStylesheet[] = embedded.blocks.map((block, blockIndex) => ({
-      path: htmlFilePath,
+      path: normalizeFsPath(htmlFilePath),
       hash: block.contentHash,
       changed: htmlChanged,
       rules: block.rules,
@@ -933,7 +933,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
           blockTargets,
           {
             inline: {
-              htmlPath: htmlFilePath,
+              htmlPath: normalizeFsPath(htmlFilePath),
               htmlHash,
               fragments,
               embedded,
