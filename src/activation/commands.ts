@@ -345,13 +345,14 @@ export function registerCommands(
       const currentEditor = vscode.window.activeTextEditor;
       if (
         !currentEditor ||
-        currentEditor.document.uri.fsPath !== filePath ||
+        !pathEquals(currentEditor.document.uri.fsPath, filePath) ||
         currentEditor.document.version !== startVersion
       ) {
         logger.info(
           `[Result] Superseded run dropped for ${filePath}: ` +
             'editor switched or document edited while the analysis was in flight'
         );
+        sessionManager.completeAnalysisCancelled();
         return;
       }
 
