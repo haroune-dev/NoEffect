@@ -160,6 +160,58 @@ export function signatureFromPlan(plan: PlannedDecoration[]): string {
 }
 
 /**
+ * How far past the icon anchor's end a hover position may fall while still
+ * counting as "over the warning triangle".
+ *
+ * The triangle is an `after` attachment with no range of its own: VS Code
+ * reports hits on it as positions in the virtual space just past the
+ * one-character anchor (normally the `;`). The exact offset varies by
+ * renderer/DPI/platform, so a small bounded tolerance is used instead of an
+ * exact character. Deliberately narrow: property/value/semicolon text must
+ * never match — the native CSS hover owns every real source character.
+ */
+export const ICON_HOVER_TOLERANCE_CHARS = 4;
+
+/** Minimal vscode-free shape of an icon anchor range and a hover position. */
+export interface IconHoverScope {
+  startLine: number;
+  startColumn: number;
+  endLine: number;
+  endColumn: number;
+}
+
+export interface IconHoverPosition {
+  line: number;
+  character: number;
+}
+
+/**
+ * Icon-only hit test for the inline warning triangle.
+ *
+ * Returns true ONLY for positions in the virtual icon space at/past the
+ * anchor's end on the anchor's end line: `[endColumn, endColumn + 4]`.
+ * Positions over the anchor character itself (normally the `;`) or over any
+ * earlier declaration text return false, so the native CSS hover behavior
+ * on real source characters is left completely untouched, while the
+ * decoration-free icon still reliably triggers the NoEffect tooltip on
+ * every platform (no position in the icon space belongs to a CSS token,
+ * so the CSS language hover has nothing to contribute there and the
+ * NoEffect tooltip is the single tooltip shown).
+ */
+export function isIconHoverTarget(
+  anchor: IconHoverScope,
+  position: IconHoverPosition
+): boolean {
+  if (position.line !== anchor.endLine) {
+    return false;
+  }
+  return (
+    position.character >= anchor.endColumn &&
+    position.character <= anchor.endColumn + ICON_HOVER_TOLERANCE_CHARS
+  );
+}
+
+/**
  * Convenience wrapper: plan the decorations for a document and return the
  * signature of the resulting plan (an empty plan has the empty signature).
  */

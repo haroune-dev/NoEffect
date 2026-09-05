@@ -7,7 +7,7 @@ import { CssLocation } from '../models/cssLocation';
 import { logger } from '../utils/logger';
 import { normalizeFsPath, pathEquals } from '../utils/pathUtils';
 import { createInactivePropertyExplanation } from './inactivePropertyExplanation';
-import { planDecorations, signatureFromPlan } from './decorationPlanner';
+import { isIconHoverTarget, planDecorations, signatureFromPlan } from './decorationPlanner';
 import { evidenceLine } from '../status/derive';
 import { isOverrideReasonCode } from '../inactive/reasonCode';
 import {
@@ -142,8 +142,17 @@ export class DecorationManager {
     if (settings.highlightStyle === 'both' || settings.highlightStyle === 'iconOnly') {
       this.iconDecorationType = vscode.window.createTextEditorDecorationType({
         // This decoration is applied only to the icon's one-character anchor
-        // (normally the semicolon), not to the whole CSS property.
-        cursor: 'pointer',
+        // (normally the semicolon), not to the whole CSS property. No `cursor`
+        // is set on purpose: the `cursor` option styles the anchor TEXT, not
+        // the `after` attachment, so it could only ever restyle the semicolon
+        // (overriding the native cursor on real source text) while the
+        // triangle pixels themselves kept the default cursor — an
+        // inconsistency on every OS. The `after` attachment API exposes no
+        // cursor field, and smuggling one through `textDecoration` is an
+        // invalid value that breaks decoration creation on Windows. The
+        // pointer cursor therefore lives only where an action exists: the
+        // command link inside the hover widget, which VS Code renders with
+        // its native link affordance on all platforms.
         after: {
           contentIconPath: vscode.Uri.file(inlineIconPath),
           margin: '0 0 0 4px',
@@ -348,11 +357,16 @@ export class DecorationManager {
    * Single hover source for the inactive-property tooltip.
    *
    * The icon is an `after` attachment whose anchor is the final source
-   * character of the declaration (normally the `;`), so this provider
-   * serves the tooltip for any pointer position over that one-character
-   * anchor range — both the semicolon and the rendered icon. The icon
-   * decoration itself carries no `hoverMessage`, so the exact same message
-   * can never be rendered twice in one tooltip.
+   * character of the declaration (normally the `;`) and which owns no
+   * range of its own. This provider therefore serves the tooltip ONLY for
+   * positions in the virtual icon space at/past the anchor's end
+   * (`isIconHoverTarget`) — the rendered triangle. Positions over the
+   * anchor character itself or over any property/value text never match,
+   * so the native CSS hover owns every real source character and is left
+   * completely untouched, while over the icon no CSS token exists for the
+   * language hover to contribute and this tooltip is the only one shown.
+   * The icon decoration itself carries no `hoverMessage`, so the exact
+   * same message can never be rendered twice in one tooltip.
    */
   provideInlineIconHover(
     document: vscode.TextDocument,
@@ -364,15 +378,17 @@ export class DecorationManager {
       return undefined;
     }
 
-    const entry = entries.find(({ range }) => {
-      if (position.line !== range.start.line) {
-        return false;
-      }
-      return (
-        position.character >= range.start.character &&
-        position.character <= range.end.character + 4
-      );
-    });
+    const entry = entries.find(({ range }) =>
+      isIconHoverTarget(
+        {
+          startLine: range.start.line,
+          startColumn: range.start.character,
+          endLine: range.end.line,
+          endColumn: range.end.character,
+        },
+        { line: position.line, character: position.character }
+      )
+    );
     if (!entry) {
       return undefined;
     }
