@@ -2,7 +2,7 @@
   "name": "no-effect",
   "displayName": "NoEffect — Inactive CSS Inspector",
   "description": "Identifies CSS declarations that have no effect in the rendered page, powered by a real Chromium engine via the Chrome DevTools Protocol. Analyzes stylesheets, embedded <style> blocks, and inline style=\"\" attributes, dimming inactive properties with DevTools-inspired tooltips right in your editor",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "publisher": "haroune-dev",
   "preview": true,
   "license": "PolyForm-Noncommercial-1.0.0",

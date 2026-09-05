@@ -81,6 +81,27 @@ test('decoration contract: no cursor override on the icon decoration type', () =
   );
 });
 
+test('diagnosability: activation logs the running version', () => {
+  // Hover/cursor semantics changed between releases, so a stale install on
+  // one OS mimics a platform bug. The activation log must carry the exact
+  // build version (read from the extension's own packageJSON, never
+  // hardcoded) so any cross-platform report is instantly checkable in the
+  // Output channel. This test reads source like derive.test.ts does because
+  // activate.ts is VS Code-bound and cannot be imported in the Node suite.
+  const source = fs.readFileSync(
+    path.resolve(__dirname, '..', '..', '..', 'src', 'activation', 'activate.ts'),
+    'utf-8'
+  );
+  assert.ok(
+    source.includes('context.extension.packageJSON'),
+    'activation must read the version from its own packageJSON'
+  );
+  assert.ok(
+    /Activating NoEffect extension v\$\{String\(extensionVersion\)\}/.test(source),
+    'activation must log the running version'
+  );
+});
+
 test('icon asset: no inert cursor styling on the triangle', () => {
   const svg = fs.readFileSync(
     path.resolve(__dirname, '..', '..', '..', 'assets', 'inline', 'warning-icon.svg'),

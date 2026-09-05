@@ -249,7 +249,12 @@ export function activateExtension(context: vscode.ExtensionContext): vscode.Disp
   const disposables: vscode.Disposable[] = [];
   const settings = getSettings();
 
-  logger.info('Activating NoEffect extension...');
+  // The running version is logged so a cross-platform behavior report can
+  // always be tied to an exact build: hover/cursor semantics changed
+  // between releases, and a stale install on one OS mimics a platform bug.
+  const extensionVersion =
+    (context.extension.packageJSON as { version?: unknown }).version ?? 'unknown';
+  logger.info(`Activating NoEffect extension v${String(extensionVersion)}...`);
   logger.info(`Settings: ${JSON.stringify(settings, null, 2)}`);
 
   // Phase 6 (F2): the single re-analysis trigger, assigned below after the
