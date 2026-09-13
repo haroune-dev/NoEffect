@@ -80,8 +80,6 @@ Every declaration is judged against the layout context the browser actually buil
 
 ## Known Limitations
 
-Honest engineering context — read before filing an issue:
-
 - **Analysis reads saved files from disk** — unsaved changes are skipped with a `FILE_UNSAVED` notice until you save (analyze-on-type is experimental and off by default).
 - **It's an evidence budget, not a proof system** — with the default 3 companions, a property used only on an unanalyzed page may be missed; with no companion HTML at all, class selectors fall back to a synthetic page and uncertain rules are simply not dimmed.
 - **Some selectors are never judged** — pseudo-classes (`:hover`), attribute selectors, sibling combinators, and `@media`-scoped declarations (evaluated at the current viewport only) produce no verdict; `var()` tokens aren't resolved in explanations.
