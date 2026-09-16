@@ -34,7 +34,6 @@ export function configuredPathValidity(facts: ReadinessFacts): ConfiguredPathVal
   }
 }
 
-/** The next action hint for the current readiness reason. */
 export function setupHint(facts: ReadinessFacts): string {
   const { settings, readiness } = facts;
   if (!settings.enabled) {
@@ -63,7 +62,6 @@ export function setupHint(facts: ReadinessFacts): string {
   }
 }
 
-/** One deterministic check cell with a stable status. */
 function check(
   result: Partial<DiagnoseCheckResult> & { id: string; label: string }
 ): DiagnoseCheckResult {
@@ -224,7 +222,7 @@ export function collectDiagnoseReport(
 }
 
 /**
- * Collect the legacy flat diagnostics lines. Deterministic, sanitized (no
+ * Collect the flat diagnostics lines. Deterministic, sanitized (no
  * secrets, no environment variables, no stack traces), stale-aware.
  */
 export function collectDiagnostics(facts: ReadinessFacts): string[] {
