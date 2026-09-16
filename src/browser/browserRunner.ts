@@ -181,7 +181,6 @@ export class BrowserRunner {
     });
   }
 
-  /** The browser exited. Mark dead, clean profile, notify listeners. */
   private terminate(pid: number, code: number | null): void {
     if (!this.managed || this.managed.pid !== pid) {
       return;
@@ -194,7 +193,6 @@ export class BrowserRunner {
     }
   }
 
-  /** Register a callback invoked when the Chromium process exits. */
   onExit(listener: (code: number | null, expected: boolean) => void): void {
     this.exitListeners.push(listener);
   }
@@ -203,12 +201,10 @@ export class BrowserRunner {
     return this.running;
   }
 
-  /** The managed browser pid (null when nothing is running). */
   get pid(): number | null {
     return this.managed?.pid ?? null;
   }
 
-  /** Whether the current browser process is provably alive. */
   isAlive(): boolean {
     return this.pid !== null && isProcessAlive(this.pid);
   }
@@ -277,7 +273,6 @@ export class BrowserRunner {
     }
   }
 
-  /** Teardown hook: start a shutdown without awaiting it. */
   dispose(): void {
     void this.shutdown();
   }

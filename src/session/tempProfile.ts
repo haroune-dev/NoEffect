@@ -15,10 +15,8 @@ import * as path from 'path';
 export const TEMP_PREFIX = 'noeffect-';
 export const STALE_TEMP_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
-/** Retry schedule for temp-dir removal. */
 export const TEMP_RETRY_DELAYS_MS = [100, 250, 500] as const;
 
-/** Create a fresh temp dir with the standard prefix. */
 export function createTempDir(prefix: string = TEMP_PREFIX): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }

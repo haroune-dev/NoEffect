@@ -34,7 +34,6 @@ export interface RetryPolicyEntry {
    */
   maxRetries: number;
 
-  /** Per-attempt budget in milliseconds. */
   timeoutMs: number;
 }
 
