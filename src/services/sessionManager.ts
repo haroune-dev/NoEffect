@@ -113,16 +113,10 @@ export class SessionManager implements CssGlobalOutcomeStore {
   /** Completion listeners (analysis finished, result already stored). */
   private completionListeners: Array<() => void> = [];
 
-  /**
-   * Whether an analysis is currently in progress.
-   */
   get analysisInProgress(): boolean {
     return this.isRunning;
   }
 
-  /**
-   * Get the most recent analysis result, if any.
-   */
   get lastAnalysisResult(): AnalysisResult | null {
     return this.lastResult;
   }
@@ -230,9 +224,6 @@ export class SessionManager implements CssGlobalOutcomeStore {
     };
   }
 
-  /**
-   * Mark that an analysis has started. Returns false if one is already running.
-   */
   beginAnalysis(): boolean {
     if (this.isRunning) {
       logger.warn('Analysis already in progress — skipping');
@@ -322,9 +313,6 @@ export class SessionManager implements CssGlobalOutcomeStore {
     }
   }
 
-  /**
-   * Cancel an in-progress analysis.
-   */
   cancelAnalysis(): void {
     if (this.isRunning) {
       this.isRunning = false;
@@ -351,11 +339,6 @@ export class SessionManager implements CssGlobalOutcomeStore {
     }
   }
 
-  /**
-   * ── CssGlobalOutcomeStore (F4 single-writer) ────────────────────────────
-   */
-
-  /** @inheritdoc */
   getFresh(
     cssPath: string,
     contentFingerprint: string,
@@ -379,7 +362,6 @@ export class SessionManager implements CssGlobalOutcomeStore {
     return entry.issues;
   }
 
-  /** @inheritdoc */
   record(
     cssPath: string,
     contentFingerprint: string,
@@ -395,9 +377,6 @@ export class SessionManager implements CssGlobalOutcomeStore {
     );
   }
 
-  /**
-   * Clear all recorded outcomes, gate state, and completion listeners.
-   */
   async dispose(): Promise<void> {
     this.cancelAnalysis();
     this.lastResult = null;
