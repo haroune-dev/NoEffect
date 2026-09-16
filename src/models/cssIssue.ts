@@ -6,16 +6,12 @@ import { CdpSourceRange } from './cdpSourceRange';
  * actual effect on the rendered page.
  */
 export interface CssIssue {
-  /** Name of the CSS property (e.g. "justify-content", "z-index") */
   propertyName: string;
 
-  /** Value of the CSS property (e.g. "center", "10") */
   propertyValue: string;
 
-  /** The CSS selector of the rule this property belongs to */
   selector: string;
 
-  /** Exact source location of this property in the CSS file */
   location: CssLocation;
 
   /**
