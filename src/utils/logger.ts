@@ -29,45 +29,27 @@ class Logger {
     }
   }
 
-  /**
-   * Log an informational message.
-   */
   info(message: string, ...args: unknown[]): void {
     this.write('INFO', message, args);
   }
 
-  /**
-   * Log a warning message.
-   */
   warn(message: string, ...args: unknown[]): void {
     this.write('WARN', message, args);
   }
 
-  /**
-   * Log an error message.
-   */
   error(message: string, ...args: unknown[]): void {
     this.write('ERROR', message, args);
   }
 
-  /**
-   * Log a debug message. Only shown when the user opens the Output Channel.
-   */
   debug(message: string, ...args: unknown[]): void {
     this.write('DEBUG', message, args);
   }
 
-  /**
-   * Dispose of the output channel.
-   */
   dispose(): void {
     this.channel?.dispose();
     this.channel = null;
   }
 
-  /**
-   * Show the output channel in the editor.
-   */
   show(): void {
     this.channel?.show(true);
   }
@@ -107,5 +89,4 @@ class Logger {
   }
 }
 
-/** Singleton logger instance for the extension */
 export const logger = new Logger();

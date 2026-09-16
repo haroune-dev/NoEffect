@@ -99,7 +99,6 @@ class AstCache {
     return { rules, hash, hit: false };
   }
 
-  /** Number of cache hits and misses since the cache was created/reset. */
   stats(): { hits: number; misses: number } {
     return { hits: this.hits, misses: this.misses };
   }
@@ -124,5 +123,4 @@ class AstCache {
   }
 }
 
-/** Shared cache instance used by the analyzer pipeline. */
 export const astCache = new AstCache();
