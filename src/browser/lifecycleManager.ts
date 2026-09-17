@@ -204,6 +204,14 @@ export class LifecycleManager {
     if (detection.status === 'found' && detection.executablePath) {
       return detection.executablePath;
     }
+    // `google-chrome` does not exist on Windows; `chrome`/`chrome.exe` does
+    // when Chrome is on PATH, and msedge is a preinstalled Chromium fallback.
+    if (process.platform === 'win32') {
+      return 'chrome.exe';
+    }
+    if (process.platform === 'darwin') {
+      return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+    }
     return 'google-chrome';
   }
 
@@ -475,13 +483,23 @@ export class LifecycleManager {
    * return the first `page` target (the tab that becomes our analysis page).
    */
   private async fetchPageTarget(wsUrl: string): Promise<{ webSocketDebuggerUrl: string }> {
-    const match = wsUrl.match(/ws:\/\/127\.0\.0\.1:(\d+)/);
-    if (!match) throw new Error('Could not parse port from WebSocket URL');
-    const debugPort = match[1];
+    // Chromium emits `DevTools listening on ws://...` with a host that is not
+    // guaranteed to be the literal `127.0.0.1` (e.g. `localhost` or `[::1]`,
+    // common on Windows) — parse the URL instead of matching a fixed host.
+    let debugHost: string;
+    let debugPort: string;
+    try {
+      const parsed = new URL(wsUrl);
+      debugHost = parsed.hostname;
+      debugPort = parsed.port;
+      if (!debugPort) throw new Error('missing port');
+    } catch {
+      throw new Error('Could not parse port from WebSocket URL');
+    }
 
     const targets: Array<Record<string, unknown>> = await new Promise((resolve, reject) => {
       http
-        .get(`http://127.0.0.1:${debugPort}/json/list`, (res: http.IncomingMessage) => {
+        .get(`http://${debugHost}:${debugPort}/json/list`, (res: http.IncomingMessage) => {
           let data = '';
           res.on('data', (chunk: string) => (data += chunk));
           res.on('end', () => {

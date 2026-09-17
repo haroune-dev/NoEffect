@@ -44,7 +44,7 @@ export function toServedPath(serverRoot: string, absolutePath: string): string |
   return (
     '/' +
     rel
-      .split(path.sep)
+      .split(/[\\/]/)
       .join('/')
       .split('/')
       .map((segment) => encodeURIComponent(segment))
@@ -82,7 +82,9 @@ export function fromServedPath(serverRoot: string, requestUrl: string): string |
   const candidate = normalizeFsPath(path.resolve(root, relative));
   // `root + path.sep` becomes `//` for the filesystem root; a `serverRoot`
   // of `/` must contain everything, not reject every request (P3-LOG-33).
-  const containmentPrefix = root === path.sep ? root : root + path.sep;
+  // Same story for a Windows drive root: `C:\` already ends in the separator,
+  // and appending another one would make every candidate fail startsWith.
+  const containmentPrefix = root.endsWith(path.sep) ? root : root + path.sep;
 
   if (process.platform === 'win32') {
     const normCandidate = candidate.toLowerCase();

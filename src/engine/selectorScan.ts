@@ -84,3 +84,34 @@ export function htmlContainsAnySelector(html: string, selectors: readonly string
   }
   return false;
 }
+
+/** Tokens that can be probed at a word boundary in document text. */
+const WORD_TOKEN = /^[A-Za-z][A-Za-z0-9_-]*$/;
+
+/**
+ * Evidence gate for the deployment-basename companion fallback (see
+ * `matchRoot`): true when the document shows text evidence of using the
+ * stylesheet — the word tokens of at least one selector are all present.
+ *
+ * Unlike {@link htmlContainsAnySelector} (which deliberately over-expands
+ * the evidence tail), this gate VETOES a pairing, so it must never reject
+ * on selectors it cannot judge: a selector with no word-boundary-probable
+ * token (e.g. `*`, `:root`, bare attribute selectors) cannot be disproven
+ * by a text scan and therefore never vetoes — the pairing is allowed.
+ * Every queryable selector the analysis produces carries at least one
+ * word token in practice, so unrelated pages (deployment hrefs pointing
+ * nowhere + a coincidental basename) are rejected while genuine
+ * deployment pages — which use the stylesheet's classes — always pass.
+ */
+export function htmlContainsStylesheetEvidence(html: string, selectors: readonly string[]): boolean {
+  for (const selector of selectors) {
+    const probed = selectorTokensFor(selector).filter((token) => WORD_TOKEN.test(token));
+    if (probed.length === 0) {
+      return true;
+    }
+    if (probed.every((token) => htmlHasToken(html, token))) {
+      return true;
+    }
+  }
+  return false;
+}

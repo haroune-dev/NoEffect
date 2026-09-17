@@ -17,19 +17,21 @@ import {
  */
 
 let root: string;
+const allRoots: string[] = [];
 
 after(() => {
   // Every `layout()` leaves a fresh root in os.tmpdir(); the resolver's
   // ancestor-chain search reaches the tmpdir itself, so a leftover root
   // from a PREVIOUS run (with an html that basename-pairs) breaks later
-  // runs. Always clean up the module-scoped root after the suite.
-  if (root) {
-    fs.rmSync(root, { recursive: true, force: true });
+  // runs. Always clean up EVERY module-scoped root after the suite.
+  for (const dir of allRoots) {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 
 function layout(): string {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'noeffect-companion-'));
+  allRoots.push(root);
   return root;
 }
 
@@ -316,12 +318,45 @@ test('deployment-style links: a base-relative URL that does not exist on disk pa
   const css = write('css/styles.css', 'body{}');
   const home = write(
     'pages/public/home.html',
-    '<base href="/"><link rel="stylesheet" href="/test/manual-multipage-stress/css/styles.css">'
+    '<base href="/"><link rel="stylesheet" href="/test/manual-multipage-stress/css/styles.css"><body></body>'
   );
 
   const resolved = (await resolveCompanion({ cssFilePath: css, workspaceFolderProvider: () => root }))!;
   assert.equal(resolved.htmlPath, home, 'the page pairs with the analyzed stylesheet by basename');
   assert.equal(resolved.kind, 'root-relative');
+});
+
+test('deployment-style links: a basename coincidence without selector evidence never pairs', async () => {
+  layout();
+  const css = write('css/styles.css', '.some-widget-xyz { color: red; }');
+  write(
+    'pages/public/home.html',
+    '<base href="/"><link rel="stylesheet" href="/test/manual-multipage-stress/css/styles.css"><body><p>unrelated</p></body>'
+  );
+
+  assert.equal(
+    await resolveCompanion({ cssFilePath: css, workspaceFolderProvider: () => root }),
+    null,
+    'zero-evidence pages must not displace the wrapper flow or genuine companions'
+  );
+});
+
+test('exact URL matches outrank nearer basename-fallback matches', async () => {
+  layout();
+  const css = write('css/a.css', '.thing-x { color: red; }');
+  write('index.html', '<link rel="stylesheet" href="css/a.css"><div class="thing-x"></div>');
+  const nearer = write(
+    'css/note.html',
+    '<link rel="stylesheet" href="/deploy/a.css"><div class="thing-x"></div>'
+  );
+
+  const resolved = (await resolveCompanion({ cssFilePath: css, workspaceFolderProvider: () => root }))!;
+  assert.equal(
+    resolved.htmlPath,
+    path.join(root, 'index.html'),
+    'provable evidence wins over the nearer basename guess'
+  );
+  assert.notEqual(resolved.htmlPath, nearer);
 });
 
 test('deployment-style links: a mismatched basename never pairs', async () => {

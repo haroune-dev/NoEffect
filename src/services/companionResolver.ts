@@ -21,13 +21,20 @@
  *     conservatively. A root-relative link whose URL model output does not
  *     exist on disk falls back to a BASENAME pair (see `matchRoot`) so
  *     deployment-style links (served root ≠ local layout) still contribute
- *     document evidence instead of silently vanishing.
+ *     document evidence instead of silently vanishing. The fallback pairs
+ *     ONLY when the candidate shows text evidence of using the stylesheet
+ *     (a selector-token containment probe) — an unrelated page that merely
+ *     shares a basename (stale copies, sibling projects, leftover test
+ *     trees) must never displace the wrapper flow or a genuine companion,
+ *     or the analysis collapses to partial/empty verdicts.
  *
  * Selection is deterministic (pure comparator, unit-tested):
- *   1. directory distance ascending (segments between the CSS file's
+ *   1. exact URL matches before basename-fallback matches (provable
+ *      evidence always outranks guessed evidence, regardless of distance),
+ *   2. directory distance ascending (segments between the CSS file's
  *      directory and the companion's directory; 0 = same directory),
- *   2. `index.html` first within equal distance,
- *   3. full path lexicographic ascending.
+ *   3. `index.html` first within equal distance,
+ *   4. full path lexicographic ascending.
  * Distance 0 reproduces the legacy same-directory policy exactly.
  *
  * The resolution's `serverRoot` is the root that yielded the winner: the
@@ -47,6 +54,9 @@ import { logger } from '../utils/logger';
 import { normalizeFsPath, pathEquals } from '../utils/pathUtils';
 import { companionSettings } from './companionSettings';
 import { resolveLocalPath, toServedPath } from './companionUrl';
+import { astCache } from '../cache/astCache';
+import { htmlContainsStylesheetEvidence } from '../engine/selectorScan';
+import { extractQueryableSelectors } from './analysisPage';
 
 /** How the winning href links the stylesheet. */
 export type CompanionHrefKind = 'relative-down' | 'relative-up' | 'root-relative' | 'base';
@@ -226,11 +236,13 @@ async function matchRoot(
   patterns: string[],
   maxDepth: number,
   maxFileSizeBytes: number,
-  budget: { remaining: number }
-): Promise<CompanionResolution[]> {
-  const matches: CompanionResolution[] = [];
+  budget: { remaining: number },
+  selectors: readonly string[]
+): Promise<{ exact: CompanionResolution[]; fallback: CompanionResolution[] }> {
+  const exact: CompanionResolution[] = [];
+  const fallback: CompanionResolution[] = [];
   if (budget.remaining <= 0 || isIgnoredPath(root, patterns)) {
-    return matches;
+    return { exact, fallback };
   }
 
   // Phase A: deterministic BFS (sorted entries, depth + operation bounds).
@@ -299,7 +311,7 @@ async function matchRoot(
           continue;
         }
         if (pathEquals(resolved, cssReal)) {
-          matches.push({
+          exact.push({
             htmlPath: full,
             href,
             kind: classifyKind(href, baseHref),
@@ -318,13 +330,23 @@ async function matchRoot(
         // URL space — pairing by basename would be guesswork. A link that
         // URL-resolves to an EXISTING file never reaches this branch, so
         // multi-stylesheet projects keep exact URL matching.
+        //
+        // Evidence gate: a basename coincidence alone must never pair an
+        // unrelated page (stale copies, sibling projects, leftover trees
+        // whose deployment hrefs point nowhere): such false companions
+        // displace the wrapper flow and genuine companions, collapsing the
+        // analysis to partial or empty verdicts. The candidate must show
+        // text evidence of using the stylesheet (selector-token
+        // containment); pages the probe cannot judge never veto it.
         const kind = classifyKind(href, baseHref);
         if (
           (kind === 'root-relative' || kind === 'base') &&
           path.basename(resolved) === path.basename(cssReal) &&
-          !fs.existsSync(resolved)
+          !fs.existsSync(resolved) &&
+          selectors.length > 0 &&
+          htmlContainsStylesheetEvidence(content, selectors)
         ) {
-          matches.push({
+          fallback.push({
             htmlPath: full,
             href,
             kind,
@@ -348,7 +370,20 @@ async function matchRoot(
     }
   }
 
-  return matches;
+  return { exact, fallback };
+}
+
+/**
+ * Canonical filesystem identity of a path for deduplication: symlinks
+ * followed, with a fallback to the original path when the file cannot be
+ * resolved (an ENOENT-style race must never crash the resolution).
+ */
+function canonicalPathOf(fsPath: string, fsLayer: CompanionFs = nodeCompanionFs): string {
+  try {
+    return fsLayer.realpathSync(fsPath);
+  } catch {
+    return fsPath;
+  }
 }
 
 /** The authored form of a stylesheet link. */
@@ -409,13 +444,9 @@ export function deduplicateByCanonicalPath(
   const seen = new Set<string>();
   const deduped: CompanionResolution[] = [];
   for (const resolution of resolutions) {
-    let canonical = resolution.htmlPath;
-    try {
-      canonical = fsLayer.realpathSync(resolution.htmlPath);
-    } catch {
-      // ENOENT-style race: keep the original path — the companion stays
-      // valid as authored; a later analysis re-resolves it.
-    }
+    // ENOENT-style race: keep the original path — the companion stays
+    // valid as authored; a later analysis re-resolves it.
+    const canonical = canonicalPathOf(resolution.htmlPath, fsLayer);
     if (seen.has(canonical)) {
       continue;
     }
@@ -427,10 +458,13 @@ export function deduplicateByCanonicalPath(
 
 /**
  * Ranked, canonical-deduplicated list of EVERY companion document that
- * links the stylesheet (pre-truncation). Deterministic comparator order:
- * distance ascending, `index.html` first within equal distance, then full
- * path lexicographic. Deduplication by canonical filesystem identity runs
- * BEFORE ranking.
+ * links the stylesheet (pre-truncation). Deterministic order: exact URL
+ * matches first (provable evidence outranks the basename-fallback guess
+ * regardless of distance), then the comparator within each tier
+ * (distance ascending, `index.html` first within equal distance, then
+ * full path lexicographic). Deduplication by canonical filesystem
+ * identity runs BEFORE ranking; a page matching both exactly (under one
+ * root) and by fallback (under another) is kept as an exact match.
  *
  * Cooperative: the underlying BFS yields to the event loop between
  * directory batches (see `matchRoot`) — resolution on big workspaces must
@@ -452,18 +486,38 @@ export async function resolveCompanionsAll(options: CompanionResolverOptions): P
       ? options.workspaceFolderProvider
       : companionSettings.workspaceFolderProvider;
 
+  // The stylesheet's queryable selectors drive the evidence gate of the
+  // basename fallback (see `matchRoot`): the parse is content-addressed
+  // and cached, so this costs nothing on the warm path. An unreadable or
+  // selector-less stylesheet disables the fallback (exact matching is
+  // unaffected) — pages without selector evidence can never pair by guess.
+  let selectors: string[] = [];
+  try {
+    selectors = extractQueryableSelectors(astCache.getOrParse(cssReal).rules);
+  } catch {
+    selectors = [];
+  }
+
   const roots = searchRootsFor(cssDir, provider, maxDepth);
   const budget = { remaining: maxCandidates };
 
-  const matches: CompanionResolution[] = [];
+  const exact: CompanionResolution[] = [];
+  const fallback: CompanionResolution[] = [];
   for (const root of roots) {
     if (budget.remaining <= 0) {
       break;
     }
-    matches.push(...(await matchRoot(root, cssReal, cssDir, patterns, maxDepth, maxFileSizeBytes, budget)));
+    const found = await matchRoot(root, cssReal, cssDir, patterns, maxDepth, maxFileSizeBytes, budget, selectors);
+    exact.push(...found.exact);
+    fallback.push(...found.fallback);
   }
 
-  return deduplicateByCanonicalPath(matches).sort(compareCompanions);
+  const dedupedExact = deduplicateByCanonicalPath(exact).sort(compareCompanions);
+  const exactCanonicals = new Set(dedupedExact.map((r) => canonicalPathOf(r.htmlPath)));
+  const dedupedFallback = deduplicateByCanonicalPath(fallback)
+    .filter((r) => !exactCanonicals.has(canonicalPathOf(r.htmlPath)))
+    .sort(compareCompanions);
+  return [...dedupedExact, ...dedupedFallback];
 }
 
 /**
