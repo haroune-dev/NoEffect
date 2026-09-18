@@ -1,11 +1,8 @@
 /**
- * Temp profile management (Phase 5).
+ * Isolated `noeffect-*` temp profiles for the browser.
  *
- * The browser runs with an isolated `noeffect-*` temp profile. This module
- * owns creating those dirs, removing them with backoff retries (Windows
- * locks fail transiently), and the best-effort activation sweep of stale
- * profiles older than `STALE_TEMP_MAX_AGE_MS` (24h). All operations are
- * bounded and never throw.
+ * Creates and removes profile dirs, retrying removal when files are
+ * briefly locked, and sweeps stale ones on activation. Nothing here throws.
  */
 
 import * as fs from 'fs';
@@ -22,13 +19,8 @@ export function createTempDir(prefix: string = TEMP_PREFIX): string {
 }
 
 /**
- * Force-remove a temp dir with retry delays (Windows lock-persistence).
- * Resolves true on success; false after all retries (caller may log/sweep).
- *
- * Non-blocking: removal runs through `fs.promises.rm` so the extension-host
- * thread is never stalled by a large recursive delete (P3-PERF-36). Paths
- * outside the `noeffect-*` temp namespace are refused outright — this
- * primitive must never be an unguarded rm-rf on an arbitrary path.
+ * Remove a temp dir, retrying briefly on locks. Returns false when it
+ * gives up. Refuses paths outside the `noeffect-*` temp dir for safety.
  */
 export async function removeTempDir(dir: string, maxAttempts: number = 3): Promise<boolean> {
   if (!isContainedTempDir(dir)) {
