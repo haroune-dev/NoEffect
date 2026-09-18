@@ -1,18 +1,8 @@
 /**
- * Unified retry / timeout policy (Phase 5).
+ * Retry and timeout numbers for session and analysis work.
  *
- * Every bounded wait and every retry decision in the session/analysis path
- * reads from this ONE typed table. There are no scattered magic numbers:
- * tests assert the table, callers consume it, and the numbers can only
- * change here.
- *
- * Rules (invariants, enforced by construction):
- *   - `maxRetries` = number of ADDITIONAL attempts after the first (so
- *     "max retries 1" means at most 2 tries in total),
- *   - retries are only configured on operations where a retry can plausibly
- *     succeed; everything else goes through once and fails fast,
- *   - every retry is preceded by `backoffFor(operation, attempt)`,
- *   - every wait is bounded by `timeoutMsFor(operation)`.
+ * Everything reads from this table so timeouts stay in one place.
+ * `maxRetries` counts extra tries after the first attempt.
  */
 
 export type RetryOperation =
@@ -38,17 +28,11 @@ export interface RetryPolicyEntry {
 }
 
 /**
- * The whole cold rebuild (browser launch + CDP connect + domain setup)
- * runs under ONE budget (`session_build`). The table must therefore
- * budget it as the SUM of its real phases — `browser_launch` (15 s) +
- * `cdp_connect` retries (3 × 5 s) + setup slack — not as a cleanup cap:
- * a 4 s cap made every cold first analysis fail its companion passes on
- * machines whose browser takes longer than 4 s to expose its DevTools
- * port (observed: 11 s with a system google-chrome), yielding a poisoned
- * ⊥ merge and "nothing dimmed on first open".
+ * `session_build` covers the whole cold start (launch + connect + setup),
+ * so keep it near the sum of those steps. A small value here used to fail
+ * first analyses on slower machines, where the browser needed about 11s
+ * to open its debugging port.
  */
-
-/** The typed policy table — the single source of timeout truth. */
 export const RETRY_POLICY: Readonly<Record<RetryOperation, RetryPolicyEntry>> = {
   browser_launch: { maxRetries: 1, timeoutMs: 15_000 },
   cdp_connect: { maxRetries: 2, timeoutMs: 5_000 },

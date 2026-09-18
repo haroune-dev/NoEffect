@@ -1,17 +1,9 @@
 /**
- * Actionable failure messages + notification allow-list (Phase 5).
+ * User-facing failure messages and when to show a notification.
  *
- * The ONLY module that turns a failure code into a user-facing message and
- * suggested actions, and the ONLY place that decides whether a failure
- * deserves a notification (vs. status + output channel only).
- *
- * Allow-list policy (respecting the Phase 4 contract):
- *  - routine recovery / self-healing events are NEVER notified — status bar
- *    and output channel carry them,
- *  - only a failure that BLOCKS an explicitly requested analysis or a
- *    user-initiated command may produce one notification,
- *  - persistent failures are deduplicated: one notification per code until
- *    the session state changes.
+ * Most failures only update the status bar and output channel. A popup
+ * is reserved for failures that block something the user asked for, and
+ * repeats of the same failure are shown once until things change.
  */
 
 import { AnalysisFailure } from '../failure/model';
@@ -128,8 +120,8 @@ export const FAILURE_MESSAGE_MAP: Readonly<Record<string, FailureMessage>> = {
 };
 
 /**
- * Map any classified failure to its entry. Falls back to a deterministic
- * neutral entry — unknown codes never invent a message or notify.
+ * Look up the message for a failure. Unknown codes get a plain
+ * fallback and stay silent.
  */
 export function messageForFailure(failure: AnalysisFailure): FailureMessage {
   const mapped = FAILURE_MESSAGE_MAP[failure.code];
@@ -145,10 +137,8 @@ export function messageForFailure(failure: AnalysisFailure): FailureMessage {
 }
 
 /**
- * Allow-list decision: should a failure of this code ever notify?
- * `blocking` = a user explicitly requested the work that failed (a manual
- * command or an explicitly-requested analysis) — the only case where a
- * notification is legitimate.
+ * Whether this failure may notify. `blocking` means the user asked
+ * for the work that failed.
  */
 export function shouldNotify(failure: AnalysisFailure, blocking: boolean): boolean {
   const mapped = messageForFailure(failure);
@@ -156,17 +146,12 @@ export function shouldNotify(failure: AnalysisFailure, blocking: boolean): boole
 }
 
 /**
- * One-notification-per-code dedupe for persistent failures. `stateKey`
- * should change (e.g. session epoch or a block of state) so the policy
- * resets naturally after the state changes.
+ * Shows one notification per failure code until `stateKey` changes.
  */
 export class NotificationDedupe {
   private readonly notified = new Map<string, string>();
 
-  /**
-   * Returns true when a notification should be shown (meaning: the code was
-   * not already noted for this stateKey) and records it.
-   */
+  /** True when this code has not been shown yet for this state. */
   shouldSend(code: string, stateKey: string): boolean {
     const prev = this.notified.get(code);
     if (prev === stateKey) {
