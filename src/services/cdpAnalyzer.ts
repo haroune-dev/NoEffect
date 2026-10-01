@@ -50,6 +50,13 @@ import {
 import { defaultLifecycle } from '../browser/lifecycleManager';
 import { CdpClient } from '../browser/cdpClient';
 import { sleep } from '../session/timing';
+import {
+  responsiveViewportsFor,
+  responsiveFingerprintForViewports,
+  applyViewportCoveragePolicy,
+  MAX_EXACT_BREAKPOINTS,
+  ResponsiveViewport,
+} from '../engine/responsiveContexts';
 import { LayoutContextBuilder } from '../browser/layoutContextBuilder';
 import {
   extractQueryableSelectorsDetailed,
@@ -517,7 +524,23 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
     // judges against is what the store records the result under — never a
     // post-run recomputation (the world may have changed mid-run).
     this.lastContextFingerprint = contextFingerprint;
-    const mergedKey = multiPassCache.mergedKeyFor(cssHash, contextFingerprint);
+    // Responsive contexts are part of the evidence identity. The viewport
+    // set is the UNION of width breakpoints from the analyzed stylesheet
+    // AND every linked stylesheet on the selected companion pages: a
+    // breakpoint in another linked sheet widens the evaluated set, so it
+    // can never silently narrow coverage and flip an ACTIVE declaration to
+    // globally INACTIVE. Computed once here so the merged-cache key and
+    // every companion pass evaluate the identical viewport set; pre-fix
+    // single-viewport entries (keys without a responsive fingerprint) must
+    // never be reused as viewport-merged evidence.
+    const viewportCssTexts = [
+      ...this.cssTextsForViewports(stylesheets),
+      ...this.linkedStylesheetTextsForCompanions(selected, new Set(stylesheets.map((s) => s.path))),
+    ];
+    const responsiveFingerprint = responsiveFingerprintForViewports(
+      responsiveViewportsFor(viewportCssTexts)
+    );
+    const mergedKey = multiPassCache.mergedKeyFor(cssHash, contextFingerprint, responsiveFingerprint);
 
     const cachedMerged = multiPassCache.getMerged(mergedKey);
     if (cachedMerged) {
@@ -539,13 +562,13 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
     for (let rank = 0; rank < selected.length; rank++) {
       throwIfCancelled(token);
       const companion = selected[rank];
-      const passKey = multiPassCache.passKeyFor(cssHash, companionHashes[rank]);
+      const passKey = multiPassCache.passKeyFor(cssHash, companionHashes[rank], responsiveFingerprint);
 
       let pass: { outcome: PassOutcome; locatedSelectors: string[] } | undefined =
         multiPassCache.getPass(passKey);
       if (!pass) {
         const started = Date.now();
-        pass = await this.runCompanionPass(companion, rank, selectors, stylesheets, !parsed.hit, token);
+        pass = await this.runCompanionPass(companion, rank, selectors, stylesheets, !parsed.hit, token, viewportCssTexts);
         logger.info(
           `[MultiCompanion] Companion pass ${rank + 1}/${selected.length} for ` +
           `${companion.htmlPath} ${pass.outcome.success ? 'succeeded' : 'failed'} in ` +
@@ -679,7 +702,8 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
     selectors: string[],
     stylesheets: LocalStylesheet[],
     baseRefresh: boolean,
-    token?: CancellationTokenLike
+    token?: CancellationTokenLike,
+    viewportCssTexts: string[] = []
   ): Promise<{ outcome: PassOutcome; locatedSelectors: string[] }> {
     const pagePath = toServedPath(companion.serverRoot, companion.htmlPath);
     if (pagePath === null) {
@@ -706,7 +730,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
         pagePath,
         true,
         (cdp, runToken) =>
-          this.inspectSelectorsForVerdicts(cdp, selectors, stylesheets, {}, runToken),
+          this.inspectSelectorsForVerdicts(cdp, selectors, stylesheets, { viewportCssTexts }, runToken),
         token
       );
       return {
@@ -739,7 +763,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
           pagePath,
           true,
           (cdp, runToken) =>
-            this.inspectSelectorsForVerdicts(cdp, selectors, stylesheets, {}, runToken),
+            this.inspectSelectorsForVerdicts(cdp, selectors, stylesheets, { viewportCssTexts }, runToken),
           token
         );
         logger.info(
@@ -922,6 +946,12 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
     // against.
     const refresh = htmlChanged || externalSheets.some((sheet) => sheet.changed);
 
+    // Responsive viewports for the page-local judgment must cover the
+    // breakpoints of BOTH the embedded blocks (judged here) and the linked
+    // external sheets (which shape the cascade/layout the embedded
+    // declarations are judged against).
+    const viewportCssTexts = this.cssTextsForViewports(externalSheets);
+
     return this.withSession(
       serverRoot,
       toServedPath(serverRoot, htmlFilePath) ?? `/${path.basename(htmlFilePath)}`,
@@ -938,6 +968,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
               fragments,
               embedded,
             },
+            viewportCssTexts,
           },
           runToken
         ),
@@ -1156,10 +1187,10 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
     cdp: CdpClient,
     selectors: string[],
     stylesheets: LocalStylesheet[],
-    options: { syntheticParents?: boolean; inline?: InlineAnalysis; crossRuleCascade?: boolean } = {},
+    options: { syntheticParents?: boolean; inline?: InlineAnalysis; crossRuleCascade?: boolean; viewportCssTexts?: string[] } = {},
     token?: CancellationTokenLike
   ): Promise<CssIssue[]> {
-    const result = await this.inspectSelectorsCore(cdp, selectors, stylesheets, options, token);
+    const result = await this.inspectSelectorsCoreAcrossViewports(cdp, selectors, stylesheets, options, token);
     return [...result.issues, ...result.inlineIssues];
   }
 
@@ -1175,16 +1206,372 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
     cdp: CdpClient,
     selectors: string[],
     stylesheets: LocalStylesheet[],
-    options: { syntheticParents?: boolean; inline?: InlineAnalysis; crossRuleCascade?: boolean } = {},
+    options: { syntheticParents?: boolean; inline?: InlineAnalysis; crossRuleCascade?: boolean; viewportCssTexts?: string[] } = {},
     token?: CancellationTokenLike
   ): Promise<PassInspectionResult> {
-    return this.inspectSelectorsCore(
+    return this.inspectSelectorsCoreAcrossViewports(
       cdp,
       selectors,
       stylesheets,
       { ...options, deferSelectorBookkeeping: true },
       token
     );
+  }
+
+  /**
+   * Raw stylesheet texts driving responsive-viewport selection.
+   *
+   * Reads each distinct backing file once (CSS files directly; embedded
+   * `<style>` targets via their owning HTML file, whose text contains the
+   * same `@media` preludes). Unreadable files contribute nothing — the
+   * caller then falls back to the default single viewport (existing
+   * behavior), never to inferred inactivity.
+   */
+  private cssTextsForViewports(stylesheets: LocalStylesheet[]): string[] {
+    const seen = new Set<string>();
+    const texts: string[] = [];
+    for (const sheet of stylesheets) {
+      const filePath = sheet.path;
+      if (!filePath || seen.has(filePath)) {
+        continue;
+      }
+      seen.add(filePath);
+      try {
+        texts.push(fs.readFileSync(filePath, 'utf-8'));
+      } catch {
+        // Unreadable backing file: no viewport evidence from it.
+      }
+    }
+    return texts;
+  }
+
+  /**
+   * Raw texts of every OTHER linked stylesheet on the selected companion
+   * pages (excluding `excludePaths`, typically the analyzed stylesheet
+   * itself, already covered by {@link cssTextsForViewports}).
+   *
+   * The cascade affecting an analyzed declaration includes all author rules
+   * matching the element — including rules from sibling stylesheets linked
+   * by the same page. Their `@media` preludes therefore widen the
+   * responsive viewport set (union): a breakpoint in another linked sheet
+   * adds evaluated contexts, so it can never silently narrow coverage and
+   * flip an ACTIVE declaration to globally INACTIVE. Unreadable/missing
+   * sheets contribute nothing (same conservative fallback as
+   * `cssTextsForViewports`).
+   */
+  private linkedStylesheetTextsForCompanions(
+    selected: CompanionResolution[],
+    excludePaths: Set<string>
+  ): string[] {
+    const seen = new Set<string>(excludePaths);
+    const texts: string[] = [];
+    for (const companion of selected) {
+      let linked: string[];
+      try {
+        linked = this.collectStylesheetPaths(companion.htmlPath, companion.serverRoot);
+      } catch {
+        continue;
+      }
+      for (const cssPath of linked) {
+        if (seen.has(cssPath)) {
+          continue;
+        }
+        seen.add(cssPath);
+        try {
+          texts.push(fs.readFileSync(cssPath, 'utf-8'));
+        } catch {
+          // Unreadable sibling sheet: no viewport evidence from it.
+        }
+      }
+    }
+    return texts;
+  }
+
+  /**
+   * Apply a responsive viewport via CDP emulation (real browser behavior).
+   * The browser re-evaluates media queries and the cascade under the new
+   * width; subsequent `CSS.getMatchedStylesForNode` facts reflect that
+   * context. Failures propagate — the caller treats a failed viewport as
+   * no semantic evidence (⊥), never as inactivity.
+   */
+  private async applyViewport(cdp: CdpClient, viewport: ResponsiveViewport): Promise<void> {
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: viewport.width,
+      height: viewport.height,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    // Give the renderer a bounded tick to re-evaluate media queries before
+    // the matched-styles facts are collected.
+    await sleep(60);
+  }
+
+  /** Best-effort restore of the default viewport (never fails a pass). */
+  private async clearViewportOverride(cdp: CdpClient): Promise<void> {
+    try {
+      await cdp.send('Emulation.clearDeviceMetricsOverride', {});
+    } catch (err) {
+      logger.debug(
+        `[Responsive] Could not clear viewport override: ` +
+        `${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
+  /**
+   * Responsive evaluation: run the single-viewport inspection under each
+   * representative viewport and merge the verdicts with the existing
+   * lattice (A wins).
+   *
+   *   - non-responsive stylesheets (no width breakpoints): exactly one
+   *     inspection with NO CDP override — bit-identical to the previous
+   *     behavior;
+   *   - responsive stylesheets: one inspection per bounded representative
+   *     viewport (real CDP evaluation each time). A declaration is globally
+   *     inactive only when inactive in EVERY successfully evaluated
+   *     viewport; active in any viewport suppresses the issue entirely
+   *     (so no "universally overridden" claim is shown for a
+   *     viewport-subset override);
+   *   - viewport execution failures contribute NO evidence (⊥): failed
+   *     viewports are skipped, and only when EVERY viewport fails does the
+   *     pass itself fail (propagated for retry/coverage handling);
+   *   - INCOMPLETE viewport coverage (downsampled: more distinct width
+   *     thresholds than MAX_EXACT_BREAKPOINTS) is incomplete evidence:
+   *     globally-inactive verdicts are SUPPRESSED (conservative abstain —
+   *     incomplete evidence must never dim), so downsampling can only hide
+   *     a truly-inactive declaration, never dim one that is active in a
+   *     skipped interval.
+   *
+   * Per-viewport bookkeeping is deferred and applied once from the union
+   * of located selectors, so multi-viewport runs never inflate
+   * analyzed/skipped counts.
+   */
+  private async inspectSelectorsCoreAcrossViewports(
+    cdp: CdpClient,
+    selectors: string[],
+    stylesheets: LocalStylesheet[],
+    options: { syntheticParents?: boolean; inline?: InlineAnalysis; deferSelectorBookkeeping?: boolean; crossRuleCascade?: boolean; viewportCssTexts?: string[] } = {},
+    token?: CancellationTokenLike
+  ): Promise<PassInspectionResult> {
+    const cssTexts = [...this.cssTextsForViewports(stylesheets), ...(options.viewportCssTexts ?? [])];
+    const viewports = responsiveViewportsFor(cssTexts);
+    const deferBookkeeping = options.deferSelectorBookkeeping === true;
+    // Non-responsive fast path: no width breakpoints AND no unmodeled media
+    // conditions → single inspection with NO emulation override (bit-identical
+    // to the previous behavior). Responsive stylesheets always yield >1
+    // viewport (B0-1, B…, Bn+1). A single viewport with unmodeled media
+    // present must still go through the coverage policy below (which will
+    // suppress unsafe I verdicts) instead of returning the raw single-pass
+    // result.
+    if (viewports.length <= 1) {
+      const single = await this.inspectSelectorsCore(cdp, selectors, stylesheets, options, token);
+      const policy = applyViewportCoveragePolicy(single.verdicts, cssTexts);
+      if (!policy.coverageComplete) {
+        if (policy.suppressedInactiveCount > 0) {
+          logger.warn(
+            `[Responsive] Unmodeled media conditions present with a single viewport context: ` +
+            `suppressing ${policy.suppressedInactiveCount} globally-inactive verdict(s) — conservative abstain`
+          );
+        }
+        return { issues: [], inlineIssues: [], verdicts: policy.verdicts, locatedSelectors: single.locatedSelectors };
+      }
+      return single;
+    }
+
+    logger.info(
+      `[Responsive] Evaluating ${viewports.length} viewport(s): ` +
+      viewports.map((v) => v.label).join(', ')
+    );
+
+    const perViewport: PassInspectionResult[] = [];
+    let lastError: unknown = null;
+    for (const viewport of viewports) {
+      throwIfCancelled(token);
+      try {
+        await this.applyViewport(cdp, viewport);
+      } catch (err) {
+        if (token?.isCancellationRequested || err instanceof AnalysisCancelledError) {
+          throw err;
+        }
+        logger.warn(
+          `[Responsive] Viewport ${viewport.label} could not be applied — skipped (no evidence)`
+        );
+        lastError = err;
+        continue;
+      }
+      try {
+        const result = await this.inspectSelectorsCore(
+          cdp,
+          selectors,
+          stylesheets,
+          { ...options, deferSelectorBookkeeping: true },
+          token
+        );
+        perViewport.push(result);
+        logger.debug(
+          `[Responsive] Viewport ${viewport.label}: ` +
+          `${result.verdicts.size} verdict(s), ${result.locatedSelectors.length} located selector(s)`
+        );
+      } catch (err) {
+        if (token?.isCancellationRequested || err instanceof AnalysisCancelledError) {
+          throw err;
+        }
+        logger.warn(
+          `[Responsive] Viewport ${viewport.label} evaluation failed — skipped (no evidence)`
+        );
+        lastError = err;
+      }
+    }
+
+    try {
+      if (perViewport.length === 0) {
+        // Every viewport failed: no semantic evidence at all. Propagate so
+        // the pass fails (retry/coverage) instead of emitting a fabricated
+        // empty success.
+        throw lastError instanceof Error ? lastError : new Error('All responsive viewport evaluations failed');
+      }
+      const merged = this.mergeViewportResults(perViewport, selectors, deferBookkeeping);
+      // Incomplete (downsampled) coverage is incomplete evidence: suppress
+      // globally-inactive verdicts (see applyViewportCoveragePolicy).
+      const policy = applyViewportCoveragePolicy(merged.verdicts, cssTexts);
+      if (!policy.coverageComplete) {
+        if (policy.suppressedInactiveCount > 0) {
+          logger.warn(
+            `[Responsive] Viewport coverage incomplete (>${MAX_EXACT_BREAKPOINTS} distinct width thresholds): ` +
+            `suppressing ${policy.suppressedInactiveCount} globally-inactive verdict(s) — conservative abstain`
+          );
+        }
+        return { issues: [], inlineIssues: [], verdicts: policy.verdicts, locatedSelectors: merged.locatedSelectors };
+      }
+      return merged;
+    } finally {
+      await this.clearViewportOverride(cdp);
+    }
+  }
+
+  /**
+   * Merge per-viewport inspection results with the verdict lattice
+   * (⊥ ≤ I ≤ A, JOIN = max): A in any viewport suppresses the declaration
+   * globally. Inline (`style=""`) issues — which have no verdict keys —
+   * are kept only when inactive in EVERY successful viewport (present in
+   * all per-viewport inline lists by location).
+   */
+  private mergeViewportResults(
+    perViewport: PassInspectionResult[],
+    selectors: string[],
+    deferBookkeeping: boolean
+  ): PassInspectionResult {
+    const mergedVerdicts = new Map<string, PassVerdict>();
+    // First-seen (narrowest-viewport-first) issue wins for merged I:
+    // deterministic, and any viewport's reason is representative because
+    // merged I means inactive in EVERY evaluated viewport.
+    for (const result of perViewport) {
+      for (const [key, verdict] of result.verdicts) {
+        const existing = mergedVerdicts.get(key);
+        if (!existing) {
+          mergedVerdicts.set(key, verdict);
+          continue;
+        }
+        if (existing.verdict === 'A' || verdict.verdict === 'A') {
+          mergedVerdicts.set(key, { key, verdict: 'A' });
+        } else if (existing.verdict === 'I' && verdict.verdict === 'I') {
+          // Keep the first viewport's issue (deterministic).
+        } else if (existing.verdict === 'bottom') {
+          mergedVerdicts.set(key, verdict);
+        }
+        // I ⊔ ⊥ = I: keep existing I; bottom never overwrites.
+      }
+    }
+
+    // Materialize merged issues from the merged verdicts: only merged I
+    // with an issue emits. Per-viewport `issues` lists are keyed by local
+    // declaration (deduped inside the core), so rebuilding from verdicts
+    // keeps exactly one issue per globally-inactive declaration.
+    const issues: CssIssue[] = [];
+    for (const verdict of mergedVerdicts.values()) {
+      if (verdict.verdict === 'I' && verdict.issue) {
+        issues.push(verdict.issue);
+      }
+    }
+
+    // Inline flow: keep an inline issue only when EVERY successful viewport
+    // reported it (by location). Active in any viewport (absent there) →
+    // globally active → suppressed.
+    const inlineIssues = this.mergeViewportInlineIssues(perViewport);
+
+    const locatedSet = new Set<string>();
+    for (const result of perViewport) {
+      for (const selector of result.locatedSelectors) {
+        locatedSet.add(selector);
+      }
+    }
+    const locatedSelectors = selectors.filter((s) => locatedSet.has(s));
+    // Preserve first-seen order for determinism when selectors contain
+    // duplicates outside the input order (should not happen).
+    for (const selector of locatedSet) {
+      if (!locatedSelectors.includes(selector)) {
+        locatedSelectors.push(selector);
+      }
+    }
+
+    if (!deferBookkeeping) {
+      const located = new Set(locatedSelectors);
+      for (const selector of selectors) {
+        if (located.has(selector)) {
+          this.runMetrics.markAnalyzed();
+        } else {
+          this.runMetrics.markSkipped(selector, 'selector matched no element in the analyzed page');
+        }
+      }
+      if (this.runMetrics.analyzedSelectorCount === 0 && selectors.length > 0) {
+        this.runMetrics.addWarning(
+          analysisContextMissingFailure(
+            'The analyzed page contains no element matching any inspected selector'
+          )
+        );
+      }
+    }
+
+    logger.info(
+      `[Responsive] Merged ${perViewport.length} viewport(s): ` +
+      `${mergedVerdicts.size} declaration verdict(s) → ${issues.length} issue(s) ` +
+      `(+${inlineIssues.length} inline)`
+    );
+    return { issues, inlineIssues, verdicts: mergedVerdicts, locatedSelectors };
+  }
+
+  /** Inline issues surviving all viewports (by location key). */
+  private mergeViewportInlineIssues(perViewport: PassInspectionResult[]): CssIssue[] {
+    if (perViewport.length === 0) {
+      return [];
+    }
+    if (perViewport.length === 1) {
+      return [...perViewport[0].inlineIssues];
+    }
+    const counts = new Map<string, { issue: CssIssue; count: number }>();
+    for (const result of perViewport) {
+      const seenInViewport = new Set<string>();
+      for (const issue of result.inlineIssues) {
+        const key = locationKey(issue.location ?? issue.declarationRange!);
+        if (seenInViewport.has(key)) {
+          continue;
+        }
+        seenInViewport.add(key);
+        const entry = counts.get(key);
+        if (!entry) {
+          counts.set(key, { issue, count: 1 });
+        } else {
+          entry.count++;
+        }
+      }
+    }
+    const survivors: CssIssue[] = [];
+    for (const { issue, count } of counts.values()) {
+      if (count === perViewport.length) {
+        survivors.push(issue);
+      }
+    }
+    return survivors;
   }
 
   /**

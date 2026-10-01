@@ -82,7 +82,7 @@ Every declaration is judged against the layout context the browser actually buil
 
 - **Analysis reads saved files from disk** — unsaved changes are skipped with a `FILE_UNSAVED` notice until you save (analyze-on-type is experimental and off by default).
 - **It's an evidence budget, not a proof system** — with the default 3 companions, a property used only on an unanalyzed page may be missed; with no companion HTML at all, class selectors fall back to a synthetic page and uncertain rules are simply not dimmed.
-- **Some selectors are never judged** — pseudo-classes (`:hover`), attribute selectors, sibling combinators, and `@media`-scoped declarations (evaluated at the current viewport only) produce no verdict; `var()` tokens aren't resolved in explanations.
+- **Some selectors are never judged** — pseudo-classes (`:hover`), attribute selectors, and sibling combinators produce no verdict; responsive `@media` width queries are evaluated across representative viewports (a declaration active in any viewport stays active); `var()` tokens aren't resolved in explanations.
 - **No bundled browser** — if auto-detection misses your install, set `noEffect.chromiumPath` and run `NoEffect: Diagnose Setup`.
 - **Trusted workspaces only, no virtual workspaces** — override jumps resolve within the documents actually analyzed.
 

@@ -44,7 +44,10 @@ class MultiPassCache {
   private mergedHits: number = 0;
   private mergedMisses: number = 0;
 
-  passKeyFor(cssHash: string, companionHash: string): string {
+  passKeyFor(cssHash: string, companionHash: string, responsiveFingerprint?: string): string {
+    if (responsiveFingerprint) {
+      return `${cssHash}|${companionHash}|${responsiveFingerprint}`;
+    }
     return `${cssHash}|${companionHash}`;
   }
 
@@ -55,8 +58,15 @@ class MultiPassCache {
    * version). The same context identity the skip gate and the SessionManager
    * result namespaces use, so every layer agrees on what "the same analysis
    * context" means.
+   *
+   * The optional responsive fingerprint (viewport set + selection version)
+   * invalidates stale single-viewport evidence: runs before responsive
+   * coverage used keys without it, so they never hit post-fix entries.
    */
-  mergedKeyFor(contentFingerprint: string, contextFingerprint: string): string {
+  mergedKeyFor(contentFingerprint: string, contextFingerprint: string, responsiveFingerprint?: string): string {
+    if (responsiveFingerprint) {
+      return `${contentFingerprint}|${contextFingerprint}|${responsiveFingerprint}`;
+    }
     return `${contentFingerprint}|${contextFingerprint}`;
   }
 

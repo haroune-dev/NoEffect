@@ -36,8 +36,11 @@ import {
  * fingerprint. Bump when the ranked order, the selection rule or the key
  * composition changes — every cached fingerprint then differs by
  * construction and every result namespace is re-validated.
+ *
+ * v2: responsive-viewport evaluation — declarations are judged across
+ * representative viewport contexts, not a single viewport.
  */
-export const ANALYSIS_CONTEXT_VERSION = 1;
+export const ANALYSIS_CONTEXT_VERSION = 2;
 
 /**
  * Sentinel returned when NO validated companion snapshot exists for the
