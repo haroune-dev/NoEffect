@@ -105,3 +105,16 @@ npm test                   # unit tests
 npm run test:integration   # tests with a real Chromium
 npm run test:smoke:all     # full test in VS Code 1.85.0 + latest
 ```
+
+**Code map:**
+
+- Rules: `src/inactive/rules/` (one folder per family: `flex`, `grid`, `position`, …)
+- Rule list: `src/inactive/ruleRegistry.ts` (`registerDefaultRules`)
+- Reason codes: `src/inactive/reasonCode.ts`
+- Page facts: `src/engine/layoutContext.ts` (`LayoutContext`)
+
+**Add a rule for a new property:**
+
+1. Copy a small rule, for example `src/inactive/rules/flow/clear.ts`.
+2. Write `inspect(layout, …)`: return a result when the property is dead, `undefined` when not sure. Never guess. Read `layout` only — no browser calls.
+3. Add it to `registerDefaultRules`, add a test next to `src/test/unit/*Rules.test.ts`, and run `npm test`.
