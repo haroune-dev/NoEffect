@@ -80,11 +80,15 @@ Every declaration is judged against the layout context the browser actually buil
 
 ## Known Limitations
 
-- **Analysis reads saved files from disk** — unsaved changes are skipped with a `FILE_UNSAVED` notice until you save (analyze-on-type is experimental and off by default).
-- **It's an evidence budget, not a proof system** — with the default 3 companions, a property used only on an unanalyzed page may be missed; with no companion HTML at all, class selectors fall back to a synthetic page and uncertain rules are simply not dimmed.
-- **Some selectors are never judged** — pseudo-classes (`:hover`), attribute selectors, and sibling combinators produce no verdict; responsive `@media` width queries are evaluated across representative viewports (a declaration active in any viewport stays active); `var()` tokens aren't resolved in explanations.
-- **No bundled browser** — if auto-detection misses your install, set `noEffect.chromiumPath` and run `NoEffect: Diagnose Setup`.
-- **Trusted workspaces only, no virtual workspaces** — override jumps resolve within the documents actually analyzed.
+- **Saved files only.** It only reads saved files. If the file is not saved, you see `FILE_UNSAVED`. Analyze-on-type is off by default and not stable yet.
+- **Only some HTML files.** NoEffect checks up to 3 HTML files per CSS file (`noEffect.maxCompanions`), plus a few more on match. With no HTML file, it uses a fake page. Some checks for tags, parents, and overrides do not work there. On a real page, it checks only the first match. Other matches can be different.
+- **Only some selectors.** It works with classes, IDs, tags, `A B` and `A > B`, and `::before`, `::after`, `::first-letter`. It skips `:hover`, `:focus`, `[type="..."]`, `+`, `~`, and `*` alone.
+- **Only screen width in px.** It checks `@media` width rules in `px` with up to 7 screen sizes. Other rules do not work: `orientation`, `prefers-*`, height, `@container`, and other units like `em`. In these cases it hides warnings to avoid wrong warnings.
+- **Only local CSS and HTML.** It works with `.css` and `.html` files, with `<style>` and `style=""`. No Sass/Less, no CSS-in-JS, no `.vue` / `.svelte` / `.jsx`. Remote `https:` files and `@import` are not read (but they still change the page). Shadow DOM and iframes are skipped. It also skips `.min.css` / `.bundle.css` files, files over 512 KB, and `node_modules` / `dist` folders.
+- **Only known rules.** If there is no rule for a property (flex, grid, position, and others), NoEffect says nothing. `var()` names are shown as-is in tooltips.
+- **Needs Chrome and a trusted folder.** You need Chrome, Edge, Brave, or Chromium (`noEffect.chromiumPath`). No browser inside (~290 KB). It does not work in untrusted folders or in the browser version of VS Code (`vscode.dev`).
+
+If you find a problem, open an issue with a small example. Help is welcome!
 
 ## Contributing & License
 

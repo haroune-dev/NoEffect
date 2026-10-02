@@ -21,6 +21,9 @@
  *     `width` (including modern range syntax `width >= 768px`).
  *   - other media features (height, orientation, prefers-*, container
  *     queries, etc.) are NOT modeled — see the limitations note below.
+ *   - `@container` queries are NEVER modeled: container size is a layout
+ *     dimension orthogonal to viewport width, so any `@container` presence
+ *     forces the conservative path via {@link hasUnmodeledMediaConditions}.
  */
 
 import type { PassVerdict } from './verdictMerge';
@@ -248,6 +251,15 @@ export function needsViewportOverride(cssTexts: readonly string[]): boolean {
  * True when the stylesheets contain a conditional rule whose applicability
  * the width-viewport model cannot represent.
  *
+ * Two independent sources mark the set as unmodeled:
+ *
+ *   1. `@container` presence (anywhere, case-insensitive). Container queries
+ *      depend on container size — a layout dimension orthogonal to viewport
+ *      width that the viewport set never varies. A declaration inside
+ *      `@container` can be inactive at the evaluated container size while
+ *      active at another, so any `@container` forces the conservative path.
+ *   2. An unmodeled `@media` condition (see below).
+ *
  * A `@media` prelude is *modeled* iff every parenthesized condition in it
  * is a supported viewport-width comparison in `px` (the classic
  * `min-width`/`max-width`/`width` forms and the single-comparison range
@@ -271,6 +283,12 @@ export function hasUnmodeledMediaConditions(cssTexts: readonly string[]): boolea
   for (const text of cssTexts) {
     if (!text || typeof text !== 'string') {
       continue;
+    }
+    // Container queries are never modeled by viewport widths (see above).
+    // Checked first so `@container` alone — with no `@media` at all —
+    // still forces suppression through the shared coverage policy.
+    if (/@container\b/i.test(text)) {
+      return true;
     }
     const mediaPrelude = /@media\b([^{]*)\{/gi;
     let preludeMatch: RegExpExecArray | null;
@@ -425,4 +443,10 @@ export function applyViewportCoveragePolicy(
  *     exact, because the unmodeled condition may hide the only ACTIVE
  *     context. Screen-never-matching types (`print`, `speech`) and bare
  *     media keywords need no viewport evidence and do not trigger this.
+ *   - UNMODELED container safety: any `@container` presence forces the same
+ *     conservative path (via {@link hasUnmodeledMediaConditions}), because
+ *     container size is never varied by the viewport set. Like unmodeled
+ *     media, this suppression is global by design (all `I` verdicts in the
+ *     evaluated text set are dropped) — it can only hide truly-inactive
+ *     declarations (false negatives), never dim container-active ones.
  */

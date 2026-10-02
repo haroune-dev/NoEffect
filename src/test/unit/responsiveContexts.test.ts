@@ -471,6 +471,48 @@ test('unmodeled: policy suppresses I even when the width set itself is exact', (
   assert.equal(policy.verdicts.get('k2')?.verdict, 'A', 'proven A survives');
 });
 
+test('unmodeled: @container forces the conservative path even with exact width coverage', () => {
+  // A container query depends on container size, never viewport width:
+  // a declaration that looks inactive at the evaluated container size may
+  // still be active at another, so a merged I is unsafe even when the
+  // width-viewport set itself is exact (or empty).
+  const css = [
+    '.card { justify-content: center; }',
+    '@container sidebar (min-width: 400px) { .card { justify-content: flex-start; } }',
+  ].join('\n');
+  assert.deepEqual(extractWidthBreakpoints([css]), [], 'container preludes must not leak viewport breakpoints');
+  assert.equal(hasUnmodeledMediaConditions([css]), true, '@container must mark coverage unmodeled');
+  const merged = new Map([
+    ['k', { key: 'k', verdict: 'I', issue: issueFor('justify-content', 'center', 1) } as PassVerdict],
+    ['k2', { key: 'k2', verdict: 'A' } as PassVerdict],
+  ]);
+  const policy = applyViewportCoveragePolicy(merged, [css]);
+  assert.equal(policy.coverageComplete, false);
+  assert.equal(policy.suppressedInactiveCount, 1);
+  assert.equal(policy.verdicts.has('k'), false, 'unsafe container-context I never dims');
+  assert.equal(policy.verdicts.get('k2')?.verdict, 'A', 'proven A survives');
+});
+
+test('unmodeled: bare @container with no @media at all still suppresses', () => {
+  const css = '@container (min-width: 400px) { .card { gap: 8px; } }';
+  assert.equal(hasUnmodeledMediaConditions([css]), true);
+  const policy = applyViewportCoveragePolicy(
+    new Map([['k', { key: 'k', verdict: 'I', issue: issueFor('gap', '8px', 1) } as PassVerdict]]),
+    [css]
+  );
+  assert.equal(policy.coverageComplete, false);
+  assert.equal(policy.verdicts.size, 0);
+});
+
+test('unmodeled: @container detection is case-insensitive and does not break modeled @media', () => {
+  assert.equal(hasUnmodeledMediaConditions(['@CONTAINER sidebar (min-width: 400px) { .a { color: red; } }']), true);
+  assert.equal(
+    hasUnmodeledMediaConditions(['@media (min-width: 768px) { .a { color: red; } }']),
+    false,
+    'pure px-width @media stays modeled'
+  );
+});
+
 // ── Budget safety: viewport evaluation stays bounded no matter how many ──
 // ── sheets/companions/duplicates feed the breakpoint union.            ──
 
