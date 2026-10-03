@@ -27,6 +27,8 @@
  */
 
 import type { PassVerdict } from './verdictMerge';
+import { isOverrideReasonCode } from '../inactive/reasonCode';
+import { CssAstParser } from '../parser/cssAst';
 
 export interface ResponsiveViewport {
   /** Viewport width in CSS px. */
@@ -340,6 +342,227 @@ function preludeHasUnmodeledCondition(prelude: string): boolean {
   return rest.length > 0;
 }
 
+/** True when any evaluated text contains a container query. */
+export function hasContainerQueries(cssTexts: readonly string[]): boolean {
+  for (const text of cssTexts) {
+    if (typeof text === 'string' && /@container\b/i.test(text)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Lowercased property names declared inside UNMODELED `@media` blocks
+ * (see {@link hasUnmodeledMediaConditions}; `@container` blocks are NOT
+ * included — container presence forces the global conservative path, so
+ * this set is only consulted when no container query is present).
+ *
+ * Only verdicts that such a rule could plausibly influence are treated as
+ * unsafe: an override loss for the same (aliasing-aware) property, or a
+ * layout verdict while unmodeled layout inputs exist (see
+ * {@link shouldSuppressInactiveVerdict}). A sibling animation-only block
+ * such as FontAwesome's `prefers-reduced-motion` reset therefore suppresses
+ * nothing about `width` or `list-style-type` verdicts.
+ */
+export function unmodeledMediaDeclarationProperties(cssTexts: readonly string[]): Set<string> {
+  const properties = new Set<string>();
+  for (const text of cssTexts) {
+    if (!text || typeof text !== 'string') {
+      continue;
+    }
+    const mediaPrelude = /@media\b([^{]*)\{/gi;
+    let preludeMatch: RegExpExecArray | null;
+    while ((preludeMatch = mediaPrelude.exec(text)) !== null) {
+      if (!preludeHasUnmodeledCondition(preludeMatch[1] ?? '')) {
+        continue;
+      }
+      const openIdx = preludeMatch.index + preludeMatch[0].length - 1;
+      const closeIdx = findMatchingBrace(text, openIdx);
+      if (closeIdx === -1) {
+        continue;
+      }
+      // Parse ONLY the unmodeled block body: nested rules (including nested
+      // `@media`) stay under unmodeled ancestry, so their properties count.
+      // A fresh parser per block keeps this helper free of shared state.
+      let rules: ReturnType<CssAstParser['parse']>;
+      try {
+        rules = new CssAstParser().parse(text.slice(openIdx + 1, closeIdx), '');
+      } catch {
+        continue;
+      }
+      for (const rule of rules) {
+        for (const declaration of rule.declarations) {
+          if (typeof declaration.name === 'string' && declaration.name.length > 0) {
+            properties.add(declaration.name.trim().toLowerCase());
+          }
+        }
+      }
+    }
+  }
+  return properties;
+}
+
+/** Index of the `}` closing the block opened at `openIdx`, or -1. */
+function findMatchingBrace(text: string, openIdx: number): number {
+  let depth = 0;
+  let inString: string | null = null;
+  let inComment = false;
+  for (let i = openIdx; i < text.length; i++) {
+    const c = text[i];
+    const next = text[i + 1];
+    if (inComment) {
+      if (c === '*' && next === '/') {
+        inComment = false;
+        i++;
+      }
+      continue;
+    }
+    if (inString) {
+      if (c === '\\') {
+        i++;
+      } else if (c === inString) {
+        inString = null;
+      }
+      continue;
+    }
+    if (c === '/' && next === '*') {
+      inComment = true;
+      i++;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      inString = c;
+      continue;
+    }
+    if (c === '{') {
+      depth++;
+    } else if (c === '}') {
+      depth--;
+      if (depth === 0) {
+        return i;
+      }
+    }
+  }
+  return -1;
+}
+
+/**
+ * Authored property names whose computed values feed inactive verdicts:
+ * `display`/`position`/`float` (layout fields), every computed property
+ * the rules read directly, and `content` (pseudo-element verdicts).
+ * Compared aliasing-aware (see {@link propertyNamesMatch}).
+ */
+const LAYOUT_INPUT_PROPERTIES: ReadonlySet<string> = new Set([
+  'display',
+  'position',
+  'float',
+  'overflow',
+  'overflow-x',
+  'overflow-y',
+  'white-space',
+  'text-wrap',
+  'text-wrap-mode',
+  'transform',
+  'translate',
+  'rotate',
+  'scale',
+  'flex-wrap',
+  'flex-flow',
+  'column-width',
+  'column-count',
+  'columns',
+  'scroll-snap-type',
+  'content',
+]);
+
+/** Explicit non-hyphen shorthand/longhand pairs (`inset` ↔ `top`, …). */
+const EXPLICIT_PROPERTY_ALIASES: ReadonlyMap<string, readonly string[]> = new Map([
+  ['inset', ['top', 'right', 'bottom', 'left']],
+  ['flex-flow', ['flex-wrap', 'flex-direction']],
+  ['columns', ['column-width', 'column-count']],
+  ['text-wrap', ['text-wrap-mode']],
+]);
+
+/**
+ * True when two authored property names can refer to the same cascade
+ * slot: equal names, hyphen shorthand/longhand pairs (`margin` vs
+ * `margin-top`, `overflow` vs `overflow-x`, `border` vs
+ * `border-top-width`), or the explicit pairs above. Distinct cascade
+ * properties (`transform` vs `translate`, `white-space` vs
+ * `text-wrap-mode`) never match.
+ */
+export function propertyNamesMatch(a: string, b: string): boolean {
+  const left = a.trim().toLowerCase();
+  const right = b.trim().toLowerCase();
+  if (left === right) {
+    return true;
+  }
+  if (left.startsWith(`${right}-`) || right.startsWith(`${left}-`)) {
+    return true;
+  }
+  return (
+    EXPLICIT_PROPERTY_ALIASES.get(left)?.includes(right) === true ||
+    EXPLICIT_PROPERTY_ALIASES.get(right)?.includes(left) === true
+  );
+}
+
+/**
+ * Per-declaration safety gate for a confirmed inactive result (pure,
+ * unit-testable). Returns true when the verdict must be dropped (⊥) because
+ * unmodeled media could hide its only ACTIVE context:
+ *
+ *   - override verdicts (`OVERRIDDEN_*`): unsafe iff an unmodeled rule
+ *     declares the same (aliasing-aware) property — only a same-property
+ *     competitor can revive the victim where the unmodeled condition flips.
+ *     Modeled winners and unrelated unmodeled blocks (animation resets,
+ *     theming) leave the verdict standing;
+ *   - layout/applicability verdicts: unsafe iff the unmodeled set touches a
+ *     layout input (computed facts the rules read). Unmodeled blocks that
+ *     only theme colors or kill animations cannot reshape layout evidence.
+ *
+ * `unmodeledProps` is {@link unmodeledMediaDeclarationProperties} of the
+ * evaluated text union (empty when fully modeled — nothing is suppressed).
+ */
+export function shouldSuppressInactiveVerdict(options: {
+  reasonCode: string | undefined;
+  propertyName: string;
+  unmodeledProps: ReadonlySet<string>;
+}): boolean {
+  if (options.unmodeledProps.size === 0) {
+    return false;
+  }
+  // The universal `all` reset touches every property slot.
+  if (options.unmodeledProps.has('all')) {
+    return true;
+  }
+  const property = options.propertyName.trim().toLowerCase();
+  if (isOverrideReasonCode(options.reasonCode)) {
+    for (const candidate of options.unmodeledProps) {
+      if (propertyNamesMatch(candidate, property)) {
+        return true;
+      }
+    }
+    return false;
+  }
+  for (const candidate of options.unmodeledProps) {
+    if (isLayoutInputProperty(candidate)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** True when an authored name feeds layout verdict evidence (alias-aware). */
+function isLayoutInputProperty(name: string): boolean {
+  for (const input of LAYOUT_INPUT_PROPERTIES) {
+    if (propertyNamesMatch(name, input)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function labelForWidth(
   width: number,
   smallest: number | null,
@@ -371,28 +594,28 @@ export function responsiveFingerprintForViewports(viewports: readonly Responsive
 /**
  * Coverage policy for merged viewport verdicts (pure, unit-testable).
  *
- * When coverage is complete (at most {@link MAX_EXACT_BREAKPOINTS}
- * distinct thresholds AND no {@link hasUnmodeledMediaConditions}), the
- * merged map is returned unchanged: a merged I truly means inactive in
- * EVERY responsive interval.
+ * Global suppression applies ONLY to width-dimension downsampling and to
+ * container queries (see {@link hasContainerQueries}): a merged I under
+ * either is unsafe and dropped (only `A` survives). Unmodeled `@media`
+ * conditions are handled one level down, per declaration, at the
+ * single-viewport inspection site (see
+ * {@link shouldSuppressInactiveVerdict}) — an unrelated animation or
+ * theming block never silences verdicts it cannot influence.
  *
- * When coverage is INCOMPLETE (downsampled — some intervals never
- * evaluated — or unmodeled media conditions present whose flip points are
- * unknown), globally-inactive verdicts are UNSAFE (a merged I could be
- * masking an A in a skipped or unmodeled context) and are suppressed: only
- * A verdicts survive (active in an evaluated viewport is truly active
- * somewhere). This guarantees incomplete responsive evidence can only hide
- * a truly-inactive declaration (conservative false negative), never dim
- * one that is active outside the evaluated contexts (no false positive) —
- * the same "incomplete evidence must never dim" contract the
- * multi-companion merge upholds for failed passes.
+ * When coverage is complete, the merged map is returned unchanged: a
+ * merged I truly means inactive in EVERY responsive interval. When
+ * INCOMPLETE, suppression guarantees incomplete evidence can only hide a
+ * truly-inactive declaration (conservative false negative), never dim one
+ * that is active outside the evaluated contexts (no false positive) — the
+ * same "incomplete evidence must never dim" contract the multi-companion
+ * merge upholds for failed passes.
  */
 export function applyViewportCoveragePolicy(
   merged: ReadonlyMap<string, PassVerdict>,
   cssTexts: readonly string[]
 ): { verdicts: Map<string, PassVerdict>; suppressedInactiveCount: number; coverageComplete: boolean } {
   const coverageComplete =
-    isViewportCoverageCompleteForCss(cssTexts) && !hasUnmodeledMediaConditions(cssTexts);
+    isViewportCoverageCompleteForCss(cssTexts) && !hasContainerQueries(cssTexts);
   if (coverageComplete) {
     return { verdicts: new Map(merged), suppressedInactiveCount: 0, coverageComplete: true };
   }
@@ -435,18 +658,24 @@ export function applyViewportCoveragePolicy(
  *     abstain — incomplete evidence must never dim), so downsampling can
  *     only hide a truly-inactive declaration (false negative), never dim a
  *     declaration that is active in a skipped interval (no false positive).
- *   - UNMODELED media safety: preludes containing anything beyond supported
- *     viewport-width `px` comparisons (see {@link hasUnmodeledMediaConditions}
- *     — orientation, height, `prefers-*`, resolution, non-`px` lengths,
- *     multi-comparison ranges) force the same conservative path: `I`
- *     verdicts are suppressed even when the width-viewport set itself is
- *     exact, because the unmodeled condition may hide the only ACTIVE
- *     context. Screen-never-matching types (`print`, `speech`) and bare
- *     media keywords need no viewport evidence and do not trigger this.
- *   - UNMODELED container safety: any `@container` presence forces the same
- *     conservative path (via {@link hasUnmodeledMediaConditions}), because
- *     container size is never varied by the viewport set. Like unmodeled
- *     media, this suppression is global by design (all `I` verdicts in the
+ *   - UNMODELED media safety (per declaration, not per file): preludes
+ *     containing anything beyond supported viewport-width `px` comparisons
+ *     (see {@link hasUnmodeledMediaConditions} — orientation, height,
+ *     `prefers-*`, resolution, non-`px` lengths, multi-comparison ranges)
+ *     gate verdict creation through {@link shouldSuppressInactiveVerdict}:
+ *     an override loss is dropped only when an unmodeled rule declares the
+ *     same (aliasing-aware) property, and a layout verdict only when the
+ *     unmodeled set touches a layout input. Unrelated blocks (animation
+ *     resets, color theming) suppress nothing they cannot influence.
+ *     Screen-never-matching types (`print`, `speech`) and bare media
+ *     keywords need no viewport evidence and do not trigger this.
+ *     Shorthand/longhand splits across the modeled boundary
+ *     (`margin` vs `margin-top`) are matched aliasing-aware; anything
+ *     beyond that is a documented remaining corner.
+ *   - UNMODELED container safety: any `@container` presence forces the
+ *     global conservative path (via {@link hasContainerQueries}), because
+ *     container size is never varied by the viewport set. Like downsampling,
+ *     this suppression is global by design (all `I` verdicts in the
  *     evaluated text set are dropped) — it can only hide truly-inactive
  *     declarations (false negatives), never dim container-active ones.
  */

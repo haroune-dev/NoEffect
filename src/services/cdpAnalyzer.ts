@@ -54,6 +54,8 @@ import {
   responsiveViewportsFor,
   responsiveFingerprintForViewports,
   applyViewportCoveragePolicy,
+  unmodeledMediaDeclarationProperties,
+  shouldSuppressInactiveVerdict,
   MAX_EXACT_BREAKPOINTS,
   ResponsiveViewport,
 } from '../engine/responsiveContexts';
@@ -170,6 +172,9 @@ function locationKey(location: CssLocation): string {
     location.endColumn,
   ].join('|');
 }
+
+/** Shared empty unmodeled-property set (fully modeled stylesheets). */
+const EMPTY_UNMODELED_PROPS: ReadonlySet<string> = new Set<string>();
 
 /**
  * Production analyzer.
@@ -1356,26 +1361,16 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
     const cssTexts = [...this.cssTextsForViewports(stylesheets), ...(options.viewportCssTexts ?? [])];
     const viewports = responsiveViewportsFor(cssTexts);
     const deferBookkeeping = options.deferSelectorBookkeeping === true;
-    // Non-responsive fast path: no width breakpoints AND no unmodeled media
-    // conditions → single inspection with NO emulation override (bit-identical
-    // to the previous behavior). Responsive stylesheets always yield >1
-    // viewport (B0-1, B…, Bn+1). A single viewport with unmodeled media
-    // present must still go through the coverage policy below (which will
-    // suppress unsafe I verdicts) instead of returning the raw single-pass
-    // result.
+    // Properties declared inside unmodeled `@media` blocks of the evaluated
+    // texts. Per-declaration safety (see shouldSuppressInactiveVerdict) is
+    // enforced inside the single-viewport core, so both the fast path and
+    // every viewport iteration share the identical gate.
+    const unmodeledProps = unmodeledMediaDeclarationProperties(cssTexts);
+    // Non-responsive fast path: a single viewport needs NO emulation
+    // override. Unmodeled-media safety does not need a viewport loop: the
+    // core drops unsafe verdicts itself (⊥), so this stays a single pass.
     if (viewports.length <= 1) {
-      const single = await this.inspectSelectorsCore(cdp, selectors, stylesheets, options, token);
-      const policy = applyViewportCoveragePolicy(single.verdicts, cssTexts);
-      if (!policy.coverageComplete) {
-        if (policy.suppressedInactiveCount > 0) {
-          logger.warn(
-            `[Responsive] Unmodeled media conditions present with a single viewport context: ` +
-            `suppressing ${policy.suppressedInactiveCount} globally-inactive verdict(s) — conservative abstain`
-          );
-        }
-        return { issues: [], inlineIssues: [], verdicts: policy.verdicts, locatedSelectors: single.locatedSelectors };
-      }
-      return single;
+      return this.inspectSelectorsCore(cdp, selectors, stylesheets, { ...options, unmodeledProps }, token);
     }
 
     logger.info(
@@ -1404,7 +1399,7 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
           cdp,
           selectors,
           stylesheets,
-          { ...options, deferSelectorBookkeeping: true },
+          { ...options, deferSelectorBookkeeping: true, unmodeledProps },
           token
         );
         perViewport.push(result);
@@ -1431,13 +1426,16 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
         throw lastError instanceof Error ? lastError : new Error('All responsive viewport evaluations failed');
       }
       const merged = this.mergeViewportResults(perViewport, selectors, deferBookkeeping);
-      // Incomplete (downsampled) coverage is incomplete evidence: suppress
-      // globally-inactive verdicts (see applyViewportCoveragePolicy).
+      // Incomplete coverage (downsampled width set or container queries)
+      // is incomplete evidence: suppress globally-inactive verdicts (see
+      // applyViewportCoveragePolicy). Unmodeled `@media` needs no global
+      // handling here — unsafe verdicts never entered the per-viewport maps
+      // (see shouldSuppressInactiveVerdict in the core below).
       const policy = applyViewportCoveragePolicy(merged.verdicts, cssTexts);
       if (!policy.coverageComplete) {
         if (policy.suppressedInactiveCount > 0) {
           logger.warn(
-            `[Responsive] Viewport coverage incomplete (>${MAX_EXACT_BREAKPOINTS} distinct width thresholds): ` +
+            `[Responsive] Viewport coverage incomplete (>${MAX_EXACT_BREAKPOINTS} distinct width thresholds or container queries): ` +
             `suppressing ${policy.suppressedInactiveCount} globally-inactive verdict(s) — conservative abstain`
           );
         }
@@ -1585,12 +1583,18 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
    * `options.deferSelectorBookkeeping` (companion passes only) skips the
    * per-selector analyzed/skipped run metrics — the merged-semantics step
    * bookkeeps each selector exactly once after all passes.
+   *
+   * `options.unmodeledProps` carries the lowercased property names declared
+   * inside unmodeled `@media` blocks of the evaluated texts (empty when
+   * fully modeled). Confirmed inactive results that unmodeled media could
+   * plausibly influence never become verdicts here (⊥) — see
+   * `shouldSuppressInactiveVerdict`.
    */
   private async inspectSelectorsCore(
     cdp: CdpClient,
     selectors: string[],
     stylesheets: LocalStylesheet[],
-    options: { syntheticParents?: boolean; inline?: InlineAnalysis; deferSelectorBookkeeping?: boolean; crossRuleCascade?: boolean } = {},
+    options: { syntheticParents?: boolean; inline?: InlineAnalysis; deferSelectorBookkeeping?: boolean; crossRuleCascade?: boolean; unmodeledProps?: ReadonlySet<string> } = {},
     token?: CancellationTokenLike
   ): Promise<PassInspectionResult> {
     const issues: CssIssue[] = [];
@@ -1786,7 +1790,25 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
       return owner?.mapped.propertyNameRange;
     };
 
+    const unmodeledProps = options.unmodeledProps ?? EMPTY_UNMODELED_PROPS;
+
     for (const { declaration, result } of inactive) {
+      // Unmodeled-media safety (per declaration): a verdict that unmodeled
+      // conditions could plausibly flip elsewhere is not evidence — it
+      // stays ⊥ (no issue, no verdict) instead of joining the merge.
+      if (
+        shouldSuppressInactiveVerdict({
+          reasonCode: result.reasonCode,
+          propertyName: declaration.propertyName,
+          unmodeledProps,
+        })
+      ) {
+        logger.debug(
+          `[Responsive] Inactive ${declaration.propertyName} skipped — ` +
+          `unmodeled media could hide its only active context (conservative abstain)`
+        );
+        continue;
+      }
       const owner = findOwner(declaration);
       if (!owner) {
         logger.debug(
@@ -1895,9 +1917,29 @@ export class CdpAnalyzer implements IneffectivePropertyAnalyzer, AnalysisProvide
           }
 
           logger.debug(`[InactiveEngine] Inactive: ${result.reasonCode}`);
+          // Occurrence rank advances for EVERY inactive declaration in
+          // order (even suppressed ones below): the k-th report pairs with
+          // the k-th authored candidate, so skipping the count here would
+          // mis-map later same-name duplicates to earlier declarations.
           const occurrenceKey = `${declaration.propertyName}|${declaration.propertyValue}`;
           const occurrence = occurrences.get(occurrenceKey) ?? 0;
           occurrences.set(occurrenceKey, occurrence + 1);
+          // Same per-declaration unmodeled-media gate as stylesheet
+          // declarations above (an `!important` rule inside unmodeled
+          // media can beat inline styles where it matches).
+          if (
+            shouldSuppressInactiveVerdict({
+              reasonCode: result.reasonCode,
+              propertyName: declaration.propertyName,
+              unmodeledProps,
+            })
+          ) {
+            logger.debug(
+              `[Responsive] Inactive inline ${declaration.propertyName} skipped — ` +
+              `unmodeled media could hide its only active context (conservative abstain)`
+            );
+            continue;
+          }
 
           const mapped = this.mapInlineDeclaration(
             declaration,

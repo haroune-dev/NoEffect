@@ -404,6 +404,111 @@ test('unmodeled em unit: base overridden at the default width must NOT dim', { t
   );
 });
 
+test('scoped: sibling animation-only block does not silence list-style verdicts (leon mirror)', { timeout: 120000 }, async (t) => {
+  if (await skipIfNoChromium(t)) {
+    return;
+  }
+  resetCaches();
+  const previousProvider = companionSettings.workspaceFolderProvider;
+  // Mirrors template_one: the analyzed sheet has genuinely dead
+  // `list-style-type` declarations while a FontAwesome-like sibling carries
+  // an unmodeled `prefers-reduced-motion` animation reset. The sibling sets
+  // only animation/transition, so the list-style verdicts stand.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'noeffect-responsive-scoped-'));
+  const cssPath = path.join(dir, 'styles.css');
+  fs.writeFileSync(
+    cssPath,
+    [
+      '.menu ul {',
+      '    list-style-type: none;',
+      '}',
+      '.menu ul li a {',
+      '    list-style-type: none;',
+      '}',
+      '',
+    ].join('\n'),
+    'utf-8'
+  );
+  fs.writeFileSync(
+    path.join(dir, 'icons.css'),
+    '@media (prefers-reduced-motion:reduce){.fa-spin{animation:none!important;transition:none!important}}\n',
+    'utf-8'
+  );
+  fs.writeFileSync(
+    path.join(dir, 'index.html'),
+    [
+      '<!DOCTYPE html>',
+      '<html lang="en">',
+      '<head>',
+      '<meta charset="UTF-8">',
+      '<link rel="stylesheet" href="./styles.css">',
+      '<link rel="stylesheet" href="./icons.css">',
+      '</head>',
+      '<body>',
+      '<div class="menu"><ul><li><a href="#">x</a></li></ul></div>',
+      '</body>',
+      '</html>',
+      '',
+    ].join('\n'),
+    'utf-8'
+  );
+  t.after(() => {
+    companionSettings.workspaceFolderProvider = previousProvider;
+    fs.rmSync(dir, { recursive: true, force: true });
+    resetCaches();
+  });
+  companionSettings.workspaceFolderProvider = () => dir;
+
+  const analyzer = new CdpAnalyzer();
+  const issues = await analyzer.analyzeCssFile(cssPath, Date.now());
+  const dead = issues.filter((i) => i.propertyName === 'list-style-type');
+  assert.equal(
+    dead.length,
+    2,
+    `unrelated animation-only unmodeled media must not hide dead declarations (got ${JSON.stringify(issues.map((i) => `${i.propertyName}:${i.propertyValue}`))})`
+  );
+});
+
+test('scoped: modeled override still dims with unrelated unmodeled media present', { timeout: 120000 }, async (t) => {
+  if (await skipIfNoChromium(t)) {
+    return;
+  }
+  resetCaches();
+  const previousProvider = companionSettings.workspaceFolderProvider;
+  // `color: red` always loses to later `color: blue` (modeled winner) while
+  // an unrelated orientation block sets only `width` elsewhere.
+  const css = [
+    '.v {',
+    '    color: red;',
+    '}',
+    '.v {',
+    '    color: blue;',
+    '}',
+    '@media (orientation: landscape) {',
+    '    .other {',
+    '        width: 20px;',
+    '    }',
+    '}',
+    '',
+  ].join('\n');
+  const { dir, cssPath } = writeScratchFixture(css, '<div class="v">x</div><div class="other">y</div>');
+  t.after(() => {
+    companionSettings.workspaceFolderProvider = previousProvider;
+    fs.rmSync(dir, { recursive: true, force: true });
+    resetCaches();
+  });
+  companionSettings.workspaceFolderProvider = () => dir;
+
+  const analyzer = new CdpAnalyzer();
+  const issues = await analyzer.analyzeCssFile(cssPath, Date.now());
+  const red = issues.filter((i) => i.propertyName === 'color' && i.propertyValue === 'red');
+  assert.equal(
+    red.length,
+    1,
+    `modeled-winner override must still dim with unrelated unmodeled media present (got ${issues.length} issue(s))`
+  );
+});
+
 test('budget: duplicate links and a sibling shared across companions stay bounded with cache reuse', { timeout: 120000 }, async (t) => {
   if (await skipIfNoChromium(t)) {
     return;

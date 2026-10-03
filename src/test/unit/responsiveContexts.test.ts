@@ -8,6 +8,10 @@ import {
   isViewportCoverageComplete,
   isViewportCoverageCompleteForCss,
   hasUnmodeledMediaConditions,
+  hasContainerQueries,
+  unmodeledMediaDeclarationProperties,
+  shouldSuppressInactiveVerdict,
+  propertyNamesMatch,
   applyViewportCoveragePolicy,
   responsiveFingerprintForViewports,
   MAX_VIEWPORT_CONTEXTS,
@@ -449,9 +453,10 @@ test('unmodeled: extraction stays narrow (no parsing broadening)', () => {
   assert.deepEqual(extractWidthBreakpoints(['@media (768px <= width < 992px) { .a { color: red; } }']), []);
 });
 
-test('unmodeled: policy suppresses I even when the width set itself is exact', () => {
+test('unmodeled: global policy stays width/container-only; media safety is per declaration', () => {
   // One px threshold (exact width coverage) plus an orientation override:
-  // the orientation flip point is unknown, so a merged I is unsafe.
+  // the merged policy must NOT nuke the file — per-declaration gating
+  // (shouldSuppressInactiveVerdict) owns @media safety instead.
   const css = [
     '.u { width: 10px; }',
     '@media (min-width: 500px) { .u { width: 20px; } }',
@@ -460,15 +465,125 @@ test('unmodeled: policy suppresses I even when the width set itself is exact', (
   assert.deepEqual(extractWidthBreakpoints([css]), [500]);
   assert.equal(isViewportCoverageCompleteForCss([css]), true, 'width coverage alone is exact');
   assert.equal(hasUnmodeledMediaConditions([css]), true);
+  assert.equal(hasContainerQueries([css]), false, 'no container query here');
   const merged = new Map([
     ['k', { key: 'k', verdict: 'I', issue: issueFor('width', '10px', 1) } as PassVerdict],
     ['k2', { key: 'k2', verdict: 'A' } as PassVerdict],
   ]);
   const policy = applyViewportCoveragePolicy(merged, [css]);
-  assert.equal(policy.coverageComplete, false);
-  assert.equal(policy.suppressedInactiveCount, 1);
-  assert.equal(policy.verdicts.has('k'), false, 'unsafe I never dims');
-  assert.equal(policy.verdicts.get('k2')?.verdict, 'A', 'proven A survives');
+  assert.equal(policy.coverageComplete, true, 'media-unmodeled alone must not trigger global suppression');
+  assert.equal(policy.suppressedInactiveCount, 0);
+  assert.equal(policy.verdicts.get('k')?.verdict, 'I', 'the merged map passes through untouched');
+});
+
+test('unmodeled props: collects declarations of unmodeled blocks only', () => {
+  const css = [
+    '.a { width: 10px; color: red; }',
+    '@media (min-width: 500px) { .a { width: 20px; } }',
+    '@media (prefers-reduced-motion: reduce) { .fa-spin { animation: none !important; transition: none !important; } }',
+  ].join('\n');
+  assert.deepEqual(
+    [...unmodeledMediaDeclarationProperties([css])].sort(),
+    ['animation', 'transition'],
+    'modeled width blocks contribute nothing; the reduced-motion block contributes its props'
+  );
+  assert.deepEqual(
+    [...unmodeledMediaDeclarationProperties(['.a { color: red; }'])],
+    [],
+    'fully modeled texts yield the empty set (nothing suppressed)'
+  );
+});
+
+test('unmodeled props: nested rules inside unmodeled blocks count', () => {
+  const css = '@media (orientation: landscape) { .a { width: 20px; } @media (min-width: 100px) { .b { display: flex; } } }';
+  const props = unmodeledMediaDeclarationProperties([css]);
+  assert.ok(props.has('width'), 'outer unmodeled declarations count');
+  assert.ok(props.has('display'), 'nested declarations under unmodeled ancestry count');
+});
+
+test('propertyNamesMatch: exact, hyphen families, and explicit pairs', () => {
+  assert.equal(propertyNamesMatch('width', 'width'), true);
+  assert.equal(propertyNamesMatch('Width', 'width'), true, 'case-insensitive');
+  assert.equal(propertyNamesMatch('margin', 'margin-top'), true);
+  assert.equal(propertyNamesMatch('margin-top', 'margin'), true, 'symmetric');
+  assert.equal(propertyNamesMatch('overflow', 'overflow-x'), true);
+  assert.equal(propertyNamesMatch('border', 'border-top-width'), true);
+  assert.equal(propertyNamesMatch('inset', 'top'), true);
+  assert.equal(propertyNamesMatch('flex-flow', 'flex-wrap'), true);
+  assert.equal(propertyNamesMatch('columns', 'column-count'), true);
+  assert.equal(propertyNamesMatch('text-wrap', 'text-wrap-mode'), true);
+  assert.equal(propertyNamesMatch('width', 'color'), false);
+  assert.equal(propertyNamesMatch('transform', 'translate'), false, 'distinct cascade properties never match');
+  assert.equal(propertyNamesMatch('white-space', 'text-wrap-mode'), false);
+  assert.equal(propertyNamesMatch('animation', 'width'), false);
+});
+
+test('gate: override loss suppressed only for same-property unmodeled competitors', () => {
+  const OVERRIDE = 'OVERRIDDEN_BY_CROSS_RULE_DECLARATION';
+  // FontAwesome-style animation reset cannot revive a width victim.
+  assert.equal(
+    shouldSuppressInactiveVerdict({
+      reasonCode: OVERRIDE,
+      propertyName: 'width',
+      unmodeledProps: new Set(['animation', 'transition']),
+    }),
+    false,
+    'unrelated unmodeled props leave override verdicts standing'
+  );
+  // …but an orientation width override can.
+  assert.equal(
+    shouldSuppressInactiveVerdict({
+      reasonCode: OVERRIDE,
+      propertyName: 'width',
+      unmodeledProps: new Set(['width']),
+    }),
+    true
+  );
+  // Shorthand/longhand across the boundary still matches.
+  assert.equal(
+    shouldSuppressInactiveVerdict({
+      reasonCode: 'OVERRIDDEN_BY_LATER_DECLARATION',
+      propertyName: 'margin-top',
+      unmodeledProps: new Set(['margin']),
+    }),
+    true
+  );
+  // Empty set (fully modeled) suppresses nothing.
+  assert.equal(
+    shouldSuppressInactiveVerdict({ reasonCode: OVERRIDE, propertyName: 'width', unmodeledProps: new Set() }),
+    false
+  );
+});
+
+test('gate: layout verdicts suppressed only when unmodeled layout inputs exist', () => {
+  const LAYOUT = 'REQUIRES_LIST_ITEM';
+  assert.equal(
+    shouldSuppressInactiveVerdict({
+      reasonCode: LAYOUT,
+      propertyName: 'list-style-type',
+      unmodeledProps: new Set(['animation', 'transition']),
+    }),
+    false,
+    'animation-only unmodeled blocks cannot reshape layout evidence'
+  );
+  assert.equal(
+    shouldSuppressInactiveVerdict({
+      reasonCode: LAYOUT,
+      propertyName: 'list-style-type',
+      unmodeledProps: new Set(['display']),
+    }),
+    true,
+    'unmodeled display rules may flip the layout context elsewhere'
+  );
+  assert.equal(
+    shouldSuppressInactiveVerdict({
+      reasonCode: LAYOUT,
+      propertyName: 'justify-content',
+      unmodeledProps: new Set(['overflow']),
+    }),
+    true,
+    'overflow feeds scroll/snap layout evidence'
+  );
 });
 
 test('unmodeled: @container forces the conservative path even with exact width coverage', () => {
